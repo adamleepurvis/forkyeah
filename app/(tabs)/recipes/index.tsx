@@ -1,15 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  TextInput,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  ActivityIndicator, Alert, Modal, ScrollView, TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,57 +18,81 @@ const TIMINGS: { value: Timing; label: string }[] = [
   { value: 'weekend', label: 'Weekend' },
 ];
 
-type Filters = { sources: string[]; proteins: Protein[]; timings: Timing[] };
+type Filters = {
+  sources: string[];
+  proteins: Protein[];
+  timings: Timing[];
+  notMadeRecently: boolean;
+};
 
-function applyFilters(recipes: Recipe[], filters: Filters, search: string): Recipe[] {
+function filterCount(f: Filters) {
+  return f.sources.length + f.proteins.length + f.timings.length + (f.notMadeRecently ? 1 : 0);
+}
+
+function applyFilters(recipes: Recipe[], filters: Filters, search: string, recentIds: Set<string>): Recipe[] {
   const q = search.toLowerCase().trim();
   return recipes.filter((r) => {
     if (q && !r.title.toLowerCase().includes(q)) return false;
     if (filters.sources.length && !filters.sources.includes(getSource(r.url))) return false;
     if (filters.proteins.length && !filters.proteins.includes(r.protein as Protein)) return false;
     if (filters.timings.length && !filters.timings.includes(r.timing as Timing)) return false;
+    if (filters.notMadeRecently && recentIds.has(r.id)) return false;
     return true;
   });
 }
 
-function filterCount(filters: Filters) {
-  return filters.sources.length + filters.proteins.length + filters.timings.length;
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5);
 }
 
 export default function RecipesScreen() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [userEmail, setUserEmail] = useState('');
-  const [filters, setFilters] = useState<Filters>({ sources: [], proteins: [], timings: [] });
+  const [filters, setFilters] = useState<Filters>({ sources: [], proteins: [], timings: [], notMadeRecently: false });
   const router = useRouter();
 
-  const fetchRecipes = useCallback(async () => {
-    const [{ data }, { data: { user } }] = await Promise.all([
+  const fetchData = useCallback(async () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const ago = thirtyDaysAgo.toISOString().split('T')[0];
+
+    const [recipesRes, plansRes, userRes] = await Promise.all([
       supabase.from('recipes').select('*').order('title'),
+      supabase.from('meal_plans').select('recipe_id').gte('date', ago),
       supabase.auth.getUser(),
     ]);
-    setRecipes(data ?? []);
-    setUserEmail(user?.email ?? '');
+
+    setRecipes(recipesRes.data ?? []);
+    setRecentIds(new Set((plansRes.data ?? []).map((p: any) => p.recipe_id).filter(Boolean)));
+    setUserEmail(userRes.data.user?.email ?? '');
     setLoading(false);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      fetchRecipes();
-    }, [fetchRecipes])
-  );
+  useFocusEffect(useCallback(() => {
+    setLoading(true);
+    fetchData();
+  }, [fetchData]));
 
-  async function signOut() {
-    await supabase.auth.signOut();
-  }
+  async function signOut() { await supabase.auth.signOut(); }
 
   const allSources = [...new Set(recipes.map((r) => getSource(r.url)))].sort();
-  const filtered = applyFilters(recipes, filters, search);
+  const filtered = applyFilters(recipes, filters, search, recentIds);
   const activeFilters = filterCount(filters);
+
+  // "Try something new" = recipes not used in 30 days, shuffled, max 8
+  const tryNew = shuffle(recipes.filter((r) => !recentIds.has(r.id))).slice(0, 8);
+  const showTryNew = !search && !activeFilters && tryNew.length > 0;
+
+  function doShuffle() {
+    if (filtered.length === 0) return;
+    const pick = filtered[Math.floor(Math.random() * filtered.length)];
+    router.push(`/(tabs)/recipes/${pick.id}`);
+  }
 
   function toggleSource(s: string) {
     setFilters((f) => ({ ...f, sources: f.sources.includes(s) ? f.sources.filter((x) => x !== s) : [...f.sources, s] }));
@@ -92,9 +108,23 @@ export default function RecipesScreen() {
     return <View style={styles.center}><ActivityIndicator size="large" color="#CC0000" /></View>;
   }
 
+  const ListHeader = showTryNew ? (
+    <View style={styles.tryNewSection}>
+      <Text style={styles.tryNewTitle}>Try something new</Text>
+      <Text style={styles.tryNewSub}>Not planned in the last 30 days</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tryNewScroll}>
+        {tryNew.map((r) => (
+          <TouchableOpacity key={r.id} style={styles.tryNewCard} onPress={() => router.push(`/(tabs)/recipes/${r.id}`)}>
+            <Text style={styles.tryNewCardTitle} numberOfLines={2}>{r.title}</Text>
+            {r.protein && <Text style={styles.tryNewCardTag}>{PROTEIN_LABEL[r.protein as Protein]}</Text>}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  ) : undefined;
+
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Recipes</Text>
         <View style={styles.headerRight}>
@@ -113,7 +143,6 @@ export default function RecipesScreen() {
         </View>
       </View>
 
-      {/* Search */}
       <View style={styles.searchRow}>
         <Ionicons name="search-outline" size={18} color="#bbb" style={styles.searchIcon} />
         <TextInput
@@ -124,22 +153,29 @@ export default function RecipesScreen() {
           onChangeText={setSearch}
           clearButtonMode="while-editing"
         />
+        <TouchableOpacity
+          style={[styles.shuffleBtn, filtered.length === 0 && styles.shuffleBtnDisabled]}
+          onPress={doShuffle}
+          disabled={filtered.length === 0}
+        >
+          <Ionicons name="shuffle-outline" size={20} color={filtered.length > 0 ? '#CC0000' : '#ddd'} />
+        </TouchableOpacity>
       </View>
 
       {(activeFilters > 0 || search) && (
         <View style={styles.activeFilterRow}>
           <Text style={styles.activeFilterText}>{filtered.length} of {recipes.length} recipes</Text>
-          <TouchableOpacity onPress={() => { setFilters({ sources: [], proteins: [], timings: [] }); setSearch(''); }}>
+          <TouchableOpacity onPress={() => { setFilters({ sources: [], proteins: [], timings: [], notMadeRecently: false }); setSearch(''); }}>
             <Text style={styles.clearFilters}>Clear all</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {filtered.length === 0 ? (
+      {filtered.length === 0 && (search || activeFilters) ? (
         <View style={styles.center}>
           <Ionicons name="search-outline" size={64} color="#E8E0D8" />
           <Text style={styles.emptyText}>No recipes match</Text>
-          <TouchableOpacity onPress={() => { setFilters({ sources: [], proteins: [], timings: [] }); setSearch(''); }}>
+          <TouchableOpacity onPress={() => { setFilters({ sources: [], proteins: [], timings: [], notMadeRecently: false }); setSearch(''); }}>
             <Text style={styles.clearFilters}>Clear filters</Text>
           </TouchableOpacity>
         </View>
@@ -150,6 +186,7 @@ export default function RecipesScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={ListHeader}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
@@ -185,10 +222,7 @@ export default function RecipesScreen() {
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setAccountOpen(false)}>
           <View style={styles.accountSheet}>
             <Text style={styles.accountEmail}>{userEmail}</Text>
-            <TouchableOpacity
-              style={styles.signOutBtn}
-              onPress={() => { setAccountOpen(false); signOut(); }}
-            >
+            <TouchableOpacity style={styles.signOutBtn} onPress={() => { setAccountOpen(false); signOut(); }}>
               <Ionicons name="log-out-outline" size={18} color="#CC0000" />
               <Text style={styles.signOutText}>Sign Out</Text>
             </TouchableOpacity>
@@ -206,6 +240,17 @@ export default function RecipesScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalContent}>
+            <Text style={styles.filterSectionLabel}>Quick</Text>
+            <View style={styles.chipWrap}>
+              <TouchableOpacity
+                style={[styles.chip, filters.notMadeRecently && styles.chipActive]}
+                onPress={() => setFilters((f) => ({ ...f, notMadeRecently: !f.notMadeRecently }))}
+              >
+                <Text style={[styles.chipText, filters.notMadeRecently && styles.chipTextActive]}>
+                  Not made in 30 days
+                </Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.filterSectionLabel}>Protein</Text>
             <View style={styles.chipWrap}>
               {PROTEINS.map((p) => (
@@ -232,11 +277,13 @@ export default function RecipesScreen() {
             </View>
           </ScrollView>
           <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.clearBtn} onPress={() => setFilters({ sources: [], proteins: [], timings: [] })}>
+            <TouchableOpacity style={styles.clearBtn} onPress={() => setFilters({ sources: [], proteins: [], timings: [], notMadeRecently: false })}>
               <Text style={styles.clearBtnText}>Clear All</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.applyBtn} onPress={() => setFiltersOpen(false)}>
-              <Text style={styles.applyBtnText}>Show {applyFilters(recipes, filters, search).length} Recipes</Text>
+              <Text style={styles.applyBtnText}>
+                Show {applyFilters(recipes, filters, search, recentIds).length} Recipes
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -271,6 +318,8 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 6 },
   searchInput: { flex: 1, paddingVertical: 11, fontSize: 15, color: '#1A1A2E' },
+  shuffleBtn: { padding: 6 },
+  shuffleBtnDisabled: { opacity: 0.4 },
   activeFilterRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingBottom: 8,
@@ -278,6 +327,19 @@ const styles = StyleSheet.create({
   activeFilterText: { fontSize: 13, color: '#888' },
   clearFilters: { fontSize: 13, color: '#CC0000', fontWeight: '600' },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
+  // Try something new
+  tryNewSection: { marginBottom: 20 },
+  tryNewTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A2E', marginBottom: 2 },
+  tryNewSub: { fontSize: 12, color: '#aaa', marginBottom: 12 },
+  tryNewScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
+  tryNewCard: {
+    width: 140, backgroundColor: '#fff', borderRadius: 14, padding: 14,
+    marginRight: 10, borderWidth: 1, borderColor: '#E8E0D8',
+    justifyContent: 'space-between', minHeight: 90,
+  },
+  tryNewCardTitle: { fontSize: 14, fontWeight: '700', color: '#1A1A2E', marginBottom: 8 },
+  tryNewCardTag: { fontSize: 11, color: '#CC0000', fontWeight: '600' },
+  // Recipe cards
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 10,
     borderWidth: 1, borderColor: '#E8E0D8', flexDirection: 'row', alignItems: 'center',
