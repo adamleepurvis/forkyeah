@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,23 +75,15 @@ export default function RecipeDetailScreen() {
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>Ingredients</Text>
-      {recipe.ingredients.map((ing, i) => (
-        <View key={i} style={styles.ingredientRow}>
-          <View style={styles.bullet} />
-          <Text style={styles.ingredientText}>
-            {[ing.amount, ing.unit, ing.name].filter(Boolean).join(' ')}
-          </Text>
-        </View>
-      ))}
-
-      <Text style={styles.sectionLabel}>Steps</Text>
-      {recipe.steps.map((step, i) => (
-        <View key={i} style={styles.stepRow}>
-          <Text style={styles.stepNumber}>{i + 1}</Text>
-          <Text style={styles.stepText}>{step}</Text>
-        </View>
-      ))}
+      {recipe.url ? (
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={() => Linking.openURL(recipe.url!)}
+        >
+          <Ionicons name="open-outline" size={18} color="#FF6B35" />
+          <Text style={styles.linkText}>Open Recipe</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {recipe.notes ? (
         <>
@@ -100,45 +93,39 @@ export default function RecipeDetailScreen() {
           </View>
         </>
       ) : null}
+
+      {!recipe.url && !recipe.notes ? (
+        <Text style={styles.emptyState}>No link or notes added.</Text>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF8F3',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF8F3',
-  },
+  container: { flex: 1, backgroundColor: '#FFF8F3' },
+  content: { padding: 20, paddingBottom: 40 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8F3' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 24,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A1A2E',
-    flex: 1,
-    marginRight: 12,
-  },
-  actions: {
+  title: { fontSize: 28, fontWeight: '800', color: '#1A1A2E', flex: 1, marginRight: 12 },
+  actions: { flexDirection: 'row', gap: 8 },
+  actionBtn: { padding: 8 },
+  linkButton: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    backgroundColor: '#FFF0E8',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FFD4BC',
+    marginBottom: 24,
   },
-  actionBtn: {
-    padding: 8,
-  },
+  linkText: { fontSize: 16, fontWeight: '600', color: '#FF6B35' },
   sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
@@ -146,40 +133,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 12,
-    marginTop: 8,
-  },
-  ingredientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  bullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FF6B35',
-    marginRight: 12,
-  },
-  ingredientText: {
-    fontSize: 16,
-    color: '#1A1A2E',
-  },
-  stepRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  stepNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF6B35',
-    width: 28,
-    marginTop: 1,
-  },
-  stepText: {
-    fontSize: 16,
-    color: '#1A1A2E',
-    flex: 1,
-    lineHeight: 24,
   },
   notesBox: {
     backgroundColor: '#fff',
@@ -188,9 +141,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8E0D8',
   },
-  notesText: {
-    fontSize: 15,
-    color: '#555',
-    lineHeight: 22,
-  },
+  notesText: { fontSize: 15, color: '#555', lineHeight: 22 },
+  emptyState: { fontSize: 15, color: '#bbb', textAlign: 'center', marginTop: 40 },
 });

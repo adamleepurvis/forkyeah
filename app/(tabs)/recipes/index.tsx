@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -23,11 +23,8 @@ export default function RecipesScreen() {
       .from('recipes')
       .select('*')
       .order('title');
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setRecipes(data ?? []);
-    }
+    if (error) Alert.alert('Error', error.message);
+    else setRecipes(data ?? []);
     setLoading(false);
   }, []);
 
@@ -37,22 +34,6 @@ export default function RecipesScreen() {
       fetchRecipes();
     }, [fetchRecipes])
   );
-
-  function renderItem({ item }: { item: Recipe }) {
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => router.push(`/(tabs)/recipes/${item.id}`)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.cardMeta}>
-          {item.ingredients.length} ingredient{item.ingredients.length !== 1 ? 's' : ''} &middot;{' '}
-          {item.steps.length} step{item.steps.length !== 1 ? 's' : ''}
-        </Text>
-      </TouchableOpacity>
-    );
-  }
 
   if (loading) {
     return (
@@ -84,9 +65,25 @@ export default function RecipesScreen() {
         <FlatList
           data={recipes}
           keyExtractor={(item) => item.id}
-          renderItem={renderItem}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => router.push(`/(tabs)/recipes/${item.id}`)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardLeft}>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                {item.notes ? (
+                  <Text style={styles.cardNotes} numberOfLines={1}>{item.notes}</Text>
+                ) : null}
+              </View>
+              {item.url ? (
+                <Ionicons name="link-outline" size={18} color="#ccc" />
+              ) : null}
+            </TouchableOpacity>
+          )}
         />
       )}
     </View>
@@ -94,10 +91,7 @@ export default function RecipesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF8F3',
-  },
+  container: { flex: 1, backgroundColor: '#FFF8F3' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -106,11 +100,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 16,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#1A1A2E',
-  },
+  title: { fontSize: 32, fontWeight: '800', color: '#1A1A2E' },
   addButton: {
     backgroundColor: '#FF6B35',
     width: 44,
@@ -119,10 +109,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  list: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
+  list: { paddingHorizontal: 20, paddingBottom: 20 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -130,31 +117,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E8E0D8',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A2E',
-    marginBottom: 4,
-  },
-  cardMeta: {
-    fontSize: 13,
-    color: '#999',
-  },
-  center: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#888',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#bbb',
-    marginTop: 4,
-  },
+  cardLeft: { flex: 1 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A2E' },
+  cardNotes: { fontSize: 13, color: '#999', marginTop: 3 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: 20, fontWeight: '600', color: '#888', marginTop: 16 },
+  emptySubtext: { fontSize: 14, color: '#bbb', marginTop: 4 },
 });

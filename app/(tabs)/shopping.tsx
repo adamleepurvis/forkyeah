@@ -2,185 +2,183 @@ import { useCallback, useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  TextInput,
   TouchableOpacity,
+  FlatList,
   StyleSheet,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import type { MealPlan } from '../../lib/types';
-
-function getWeekDates(): { start: string; end: string; label: string } {
-  const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-  const label = `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-  return { start: fmt(monday), end: fmt(sunday), label };
-}
-
-type ShoppingItem = {
-  key: string;
-  ingredient: string;
-  recipes: string[];
-  checked: boolean;
-};
-
-function buildShoppingList(plans: MealPlan[]): ShoppingItem[] {
-  const map = new Map<string, { ingredient: string; recipes: Set<string> }>();
-
-  for (const plan of plans) {
-    if (!plan.recipe) continue;
-    for (const ing of plan.recipe.ingredients) {
-      const ingredient = [ing.amount, ing.unit, ing.name].filter(Boolean).join(' ').trim();
-      const key = ing.name.toLowerCase().trim();
-      if (!key) continue;
-      if (!map.has(key)) {
-        map.set(key, { ingredient, recipes: new Set() });
-      }
-      map.get(key)!.recipes.add(plan.recipe.title);
-    }
-  }
-
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, { ingredient, recipes }]) => ({
-      key,
-      ingredient,
-      recipes: Array.from(recipes),
-      checked: false,
-    }));
-}
+import type { ShoppingItem } from '../../lib/types';
 
 export default function ShoppingScreen() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const week = getWeekDates();
+  const [newItem, setNewItem] = useState('');
+  const [adding, setAdding] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchItems = useCallback(async () => {
     const { data, error } = await supabase
-      .from('meal_plans')
-      .select('*, recipe:recipes(*)')
-      .gte('date', week.start)
-      .lte('date', week.end);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setItems(buildShoppingList(data as MealPlan[]));
-    }
+      .from('shopping_items')
+      .select('*')
+      .order('created_at');
+    if (error) Alert.alert('Error', error.message);
+    else setItems(data ?? []);
     setLoading(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      fetchData();
-    }, [fetchData])
+      fetchItems();
+    }, [fetchItems])
   );
 
-  function toggleItem(key: string) {
+  async function addItem() {
+    const name = newItem.trim();
+    if (!name) return;
+    setAdding(true);
+    const { error } = await supabase.from('shopping_items').insert({ name });
+    if (error) Alert.alert('Error', error.message);
+    else {
+      setNewItem('');
+      fetchItems();
+    }
+    setAdding(false);
+  }
+
+  async function toggleItem(item: ShoppingItem) {
+    await supabase.from('shopping_items').update({ checked: !item.checked }).eq('id', item.id);
     setItems((prev) =>
-      prev.map((item) => (item.key === key ? { ...item, checked: !item.checked } : item))
+      prev.map((i) => (i.id === item.id ? { ...i, checked: !i.checked } : i))
     );
   }
 
-  function uncheckAll() {
-    setItems((prev) => prev.map((item) => ({ ...item, checked: false })));
+  async function clearChecked() {
+    Alert.alert('Clear checked items?', 'This will remove everything you\'ve checked off.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          const checkedIds = items.filter((i) => i.checked).map((i) => i.id);
+          await supabase.from('shopping_items').delete().in('id', checkedIds);
+          fetchItems();
+        },
+      },
+    ]);
+  }
+
+  async function clearAll() {
+    Alert.alert('Clear entire list?', 'This will remove all items.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear all',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.from('shopping_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          fetchItems();
+        },
+      },
+    ]);
   }
 
   const unchecked = items.filter((i) => !i.checked);
   const checked = items.filter((i) => i.checked);
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FF6B35" />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <View style={styles.weekBadge}>
-        <Ionicons name="calendar-outline" size={14} color="#FF6B35" />
-        <Text style={styles.weekText}>{week.label}</Text>
-      </View>
-
-      {items.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="cart-outline" size={64} color="#E8E0D8" />
-          <Text style={styles.emptyText}>Nothing planned yet</Text>
-          <Text style={styles.emptySubtext}>Add meals in the Planner tab to generate your list</Text>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {unchecked.map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              style={styles.itemRow}
-              onPress={() => toggleItem(item.key)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.checkbox} />
-              <View style={styles.itemText}>
-                <Text style={styles.itemName}>{item.ingredient}</Text>
-                <Text style={styles.itemSource}>{item.recipes.join(', ')}</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={90}
+    >
+      <View style={styles.container}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#FF6B35" />
+          </View>
+        ) : (
+          <FlatList
+            data={[...unchecked, ...checked]}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.center}>
+                <Ionicons name="cart-outline" size={64} color="#E8E0D8" />
+                <Text style={styles.emptyText}>List is empty</Text>
+                <Text style={styles.emptySubtext}>Add items below</Text>
               </View>
-            </TouchableOpacity>
-          ))}
-
-          {checked.length > 0 && (
-            <>
-              <View style={styles.divider}>
-                <Text style={styles.dividerText}>In cart ({checked.length})</Text>
-                <TouchableOpacity onPress={uncheckAll}>
-                  <Text style={styles.uncheckAll}>Uncheck all</Text>
-                </TouchableOpacity>
-              </View>
-              {checked.map((item) => (
+            }
+            ListHeaderComponent={
+              checked.length > 0 ? null : undefined
+            }
+            renderItem={({ item }) => (
+              <>
+                {item.id === checked[0]?.id && checked.length > 0 && (
+                  <View style={styles.divider}>
+                    <Text style={styles.dividerText}>In cart ({checked.length})</Text>
+                    <TouchableOpacity onPress={clearChecked}>
+                      <Text style={styles.clearText}>Clear</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <TouchableOpacity
-                  key={item.key}
-                  style={[styles.itemRow, styles.itemRowChecked]}
-                  onPress={() => toggleItem(item.key)}
+                  style={[styles.itemRow, item.checked && styles.itemRowChecked]}
+                  onPress={() => toggleItem(item)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.checkbox, styles.checkboxChecked]}>
-                    <Ionicons name="checkmark" size={14} color="#fff" />
+                  <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
+                    {item.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
                   </View>
-                  <View style={styles.itemText}>
-                    <Text style={[styles.itemName, styles.itemNameChecked]}>{item.ingredient}</Text>
-                  </View>
+                  <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>
+                    {item.name}
+                  </Text>
                 </TouchableOpacity>
-              ))}
-            </>
-          )}
-        </ScrollView>
-      )}
-    </View>
+              </>
+            )}
+            ListFooterComponent={
+              items.length > 0 ? (
+                <TouchableOpacity style={styles.clearAllBtn} onPress={clearAll}>
+                  <Text style={styles.clearAllText}>Clear entire list</Text>
+                </TouchableOpacity>
+              ) : null
+            }
+          />
+        )}
+
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Add an item..."
+            placeholderTextColor="#bbb"
+            value={newItem}
+            onChangeText={setNewItem}
+            onSubmitEditing={addItem}
+            returnKeyType="done"
+          />
+          <TouchableOpacity style={styles.addBtn} onPress={addItem} disabled={adding}>
+            {adding ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons name="add" size={24} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF8F3' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  weekBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8E0D8',
-  },
-  weekText: { fontSize: 13, color: '#FF6B35', fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, paddingTop: 80 },
+  list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -199,23 +197,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxChecked: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
-  },
-  itemText: { flex: 1 },
-  itemName: { fontSize: 16, color: '#1A1A2E', fontWeight: '500' },
+  checkboxChecked: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
+  itemName: { fontSize: 16, color: '#1A1A2E', fontWeight: '500', flex: 1 },
   itemNameChecked: { textDecorationLine: 'line-through' },
-  itemSource: { fontSize: 12, color: '#bbb', marginTop: 2 },
   divider: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 4,
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
   },
   dividerText: { fontSize: 12, color: '#aaa', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  uncheckAll: { fontSize: 12, color: '#FF6B35', fontWeight: '600' },
-  emptyText: { fontSize: 20, fontWeight: '600', color: '#888', marginTop: 16, textAlign: 'center' },
-  emptySubtext: { fontSize: 14, color: '#bbb', marginTop: 8, textAlign: 'center' },
+  clearText: { fontSize: 13, color: '#FF6B35', fontWeight: '600' },
+  clearAllBtn: { marginTop: 24, alignItems: 'center', paddingVertical: 8 },
+  clearAllText: { fontSize: 14, color: '#ccc' },
+  emptyText: { fontSize: 20, fontWeight: '600', color: '#888', marginTop: 16 },
+  emptySubtext: { fontSize: 14, color: '#bbb', marginTop: 4 },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E8E0D8',
+    backgroundColor: '#FFF8F3',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E8E0D8',
+    color: '#1A1A2E',
+  },
+  addBtn: {
+    backgroundColor: '#FF6B35',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

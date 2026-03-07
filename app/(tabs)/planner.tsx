@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -13,21 +13,17 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import type { Recipe, MealPlan, MealSlot } from '../../lib/types';
+import type { Recipe, MealPlan } from '../../lib/types';
 
-const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner'];
-const SLOT_LABEL: Record<MealSlot, string> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-};
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu'];
 
 function getWeekDates(offset = 0): Date[] {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun
+  const day = now.getDay();
   const monday = new Date(now);
   monday.setDate(now.getDate() - ((day + 6) % 7) + offset * 7);
-  return Array.from({ length: 7 }, (_, i) => {
+  // Return Mon–Thu only (indices 0–3)
+  return Array.from({ length: 4 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     return d;
@@ -38,31 +34,27 @@ function toDateStr(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 export default function PlannerScreen() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekDates, setWeekDates] = useState<Date[]>(getWeekDates(0));
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const [picking, setPicking] = useState<{ date: string; slot: MealSlot } | null>(null);
-
-  useEffect(() => {
-    setWeekDates(getWeekDates(weekOffset));
-  }, [weekOffset]);
+  const [picking, setPicking] = useState<string | null>(null); // date string
 
   const fetchData = useCallback(async () => {
     const dates = getWeekDates(weekOffset);
+    setWeekDates(dates);
     const start = toDateStr(dates[0]);
-    const end = toDateStr(dates[6]);
+    const end = toDateStr(dates[3]);
 
     const [plansRes, recipesRes] = await Promise.all([
       supabase
         .from('meal_plans')
         .select('*, recipe:recipes(*)')
         .gte('date', start)
-        .lte('date', end),
+        .lte('date', end)
+        .eq('meal_slot', 'dinner'),
       supabase.from('recipes').select('*').order('title'),
     ]);
 
@@ -82,45 +74,36 @@ export default function PlannerScreen() {
     }, [fetchData])
   );
 
-  function getMealPlan(date: string, slot: MealSlot): MealPlan | undefined {
-    return mealPlans.find((m) => m.date === date && m.meal_slot === slot);
+  function getMealPlan(date: string): MealPlan | undefined {
+    return mealPlans.find((m) => m.date === date);
   }
 
   async function assignRecipe(recipe: Recipe) {
     if (!picking) return;
-    const existing = getMealPlan(picking.date, picking.slot);
+    const existing = getMealPlan(picking);
 
     if (existing) {
-      const { error } = await supabase
-        .from('meal_plans')
-        .update({ recipe_id: recipe.id })
-        .eq('id', existing.id);
-      if (error) Alert.alert('Error', error.message);
+      await supabase.from('meal_plans').update({ recipe_id: recipe.id }).eq('id', existing.id);
     } else {
-      const { error } = await supabase
+      await supabase
         .from('meal_plans')
-        .insert({ date: picking.date, meal_slot: picking.slot, recipe_id: recipe.id });
-      if (error) Alert.alert('Error', error.message);
+        .insert({ date: picking, meal_slot: 'dinner', recipe_id: recipe.id });
     }
 
     setPicking(null);
     fetchData();
   }
 
-  async function clearSlot(date: string, slot: MealSlot) {
-    const existing = getMealPlan(date, slot);
+  async function clearSlot(date: string) {
+    const existing = getMealPlan(date);
     if (!existing) return;
-    const { error } = await supabase.from('meal_plans').delete().eq('id', existing.id);
-    if (error) Alert.alert('Error', error.message);
-    else fetchData();
+    await supabase.from('meal_plans').delete().eq('id', existing.id);
+    fetchData();
   }
 
-  const weekLabel = (() => {
-    if (weekDates.length === 0) return '';
-    const start = weekDates[0];
-    const end = weekDates[6];
-    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-  })();
+  const weekLabel = weekDates.length
+    ? `${weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDates[3].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : '';
 
   return (
     <View style={styles.container}>
@@ -140,49 +123,63 @@ export default function PlannerScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
-          {weekDates.map((date, di) => {
+          {weekDates.map((date, i) => {
             const dateStr = toDateStr(date);
             const isToday = toDateStr(new Date()) === dateStr;
+            const plan = getMealPlan(dateStr);
+
             return (
-              <View key={dateStr} style={styles.dayBlock}>
-                <View style={[styles.dayHeader, isToday && styles.dayHeaderToday]}>
+              <View key={dateStr} style={[styles.dayCard, isToday && styles.dayCardToday]}>
+                <View style={styles.dayHeader}>
                   <Text style={[styles.dayName, isToday && styles.dayNameToday]}>
-                    {DAY_NAMES[di]}
+                    {DAY_NAMES[i]}
                   </Text>
                   <Text style={[styles.dayDate, isToday && styles.dayDateToday]}>
-                    {date.getDate()}
+                    {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
-                {MEAL_SLOTS.map((slot) => {
-                  const plan = getMealPlan(dateStr, slot);
-                  return (
-                    <View key={slot} style={styles.slotRow}>
-                      <Text style={styles.slotLabel}>{SLOT_LABEL[slot]}</Text>
-                      {plan?.recipe ? (
-                        <TouchableOpacity
-                          style={styles.recipePill}
-                          onLongPress={() => clearSlot(dateStr, slot)}
-                          onPress={() => setPicking({ date: dateStr, slot })}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.recipePillText} numberOfLines={1}>
-                            {plan.recipe.title}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.emptySlot}
-                          onPress={() => setPicking({ date: dateStr, slot })}
-                        >
-                          <Ionicons name="add" size={16} color="#ccc" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  );
-                })}
+
+                {plan?.recipe ? (
+                  <TouchableOpacity
+                    style={styles.assignedRecipe}
+                    onPress={() => setPicking(dateStr)}
+                    onLongPress={() => clearSlot(dateStr)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.assignedTitle}>{plan.recipe.title}</Text>
+                    <Text style={styles.assignedHint}>Tap to change · Hold to clear</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.emptySlot}
+                    onPress={() => setPicking(dateStr)}
+                  >
+                    <Ionicons name="add-circle-outline" size={22} color="#E8E0D8" />
+                    <Text style={styles.emptySlotText}>Add dinner</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })}
+
+          {/* Friday */}
+          <View style={[styles.dayCard, styles.fridayCard]}>
+            <View style={styles.dayHeader}>
+              <Text style={styles.dayName}>Fri</Text>
+              <Text style={styles.dayDate}>
+                {(() => {
+                  if (!weekDates.length) return '';
+                  const fri = new Date(weekDates[0]);
+                  fri.setDate(weekDates[0].getDate() + 4);
+                  return fri.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                })()}
+              </Text>
+            </View>
+            <View style={styles.orderOutBadge}>
+              <Ionicons name="bag-outline" size={16} color="#999" />
+              <Text style={styles.orderOutText}>Order out</Text>
+            </View>
+          </View>
         </ScrollView>
       )}
 
@@ -196,7 +193,7 @@ export default function PlannerScreen() {
           </View>
           {recipes.length === 0 ? (
             <View style={styles.center}>
-              <Text style={styles.emptyText}>No recipes yet. Add some first!</Text>
+              <Text style={styles.emptyText}>No recipes yet. Add some in the Recipes tab!</Text>
             </View>
           ) : (
             <FlatList
@@ -230,57 +227,49 @@ const styles = StyleSheet.create({
   },
   navBtn: { padding: 8 },
   weekLabel: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
-  grid: { padding: 16, gap: 16 },
-  dayBlock: {
+  grid: { padding: 16, gap: 12 },
+  dayCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E8E0D8',
     overflow: 'hidden',
   },
+  dayCardToday: { borderColor: '#FF6B35', borderWidth: 2 },
+  fridayCard: { opacity: 0.5 },
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#FAF0E8',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0E8E0',
   },
-  dayHeaderToday: { backgroundColor: '#FF6B35' },
-  dayName: { fontSize: 14, fontWeight: '700', color: '#888' },
-  dayNameToday: { color: '#fff' },
-  dayDate: { fontSize: 14, fontWeight: '700', color: '#1A1A2E' },
-  dayDateToday: { color: '#fff' },
-  slotRow: {
+  dayName: { fontSize: 15, fontWeight: '800', color: '#1A1A2E', width: 36 },
+  dayNameToday: { color: '#FF6B35' },
+  dayDate: { fontSize: 14, color: '#999' },
+  dayDateToday: { color: '#FF6B35' },
+  assignedRecipe: {
+    padding: 16,
+  },
+  assignedTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
+  assignedHint: { fontSize: 11, color: '#ccc', marginTop: 4 },
+  emptySlot: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F0E8E0',
+    gap: 8,
+    padding: 16,
   },
-  slotLabel: { fontSize: 12, color: '#aaa', width: 72, fontWeight: '600' },
-  recipePill: {
-    flex: 1,
-    backgroundColor: '#FFF0E8',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#FFD4BC',
-  },
-  recipePillText: { fontSize: 13, color: '#FF6B35', fontWeight: '600' },
-  emptySlot: {
-    flex: 1,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E8E0D8',
-    borderStyle: 'dashed',
+  emptySlotText: { fontSize: 15, color: '#ccc' },
+  orderOutBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    padding: 16,
   },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  orderOutText: { fontSize: 15, color: '#999' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   modal: { flex: 1, backgroundColor: '#FFF8F3' },
   modalHeader: {
     flexDirection: 'row',
@@ -305,5 +294,5 @@ const styles = StyleSheet.create({
     borderColor: '#E8E0D8',
   },
   recipeOptionText: { fontSize: 16, fontWeight: '600', color: '#1A1A2E' },
-  emptyText: { fontSize: 16, color: '#888' },
+  emptyText: { fontSize: 16, color: '#888', textAlign: 'center' },
 });
