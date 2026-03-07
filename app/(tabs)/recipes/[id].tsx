@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
   TouchableOpacity, Alert, Linking, Modal, FlatList,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { getSource, type Recipe, type Protein } from '../../../lib/types';
@@ -117,6 +117,7 @@ export default function RecipeDetailScreen() {
 
   return (
     <>
+      <Stack.Screen options={{ title: recipe.title }} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{recipe.title}</Text>

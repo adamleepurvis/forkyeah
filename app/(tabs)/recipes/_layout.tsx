@@ -9,6 +9,10 @@ export default function RecipesLayout() {
         headerShadowVisible: false,
         headerTintColor: '#CC0000',
       }}
-    />
+    >
+      <Stack.Screen name="index" options={{ title: 'Fork Yeah!' }} />
+      <Stack.Screen name="new" options={{ title: 'Add Recipe' }} />
+      <Stack.Screen name="[id]" options={{ title: 'Recipe' }} />
+    </Stack>
   );
 }
