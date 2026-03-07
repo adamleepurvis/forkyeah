@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import type { Protein, Timing } from '../../../lib/types';
 
@@ -36,6 +37,7 @@ export default function NewRecipeScreen() {
   const [notes, setNotes] = useState('');
   const [protein, setProtein] = useState<Protein | null>(null);
   const [timing, setTiming] = useState<Timing | null>(null);
+  const [ingredients, setIngredients] = useState<string[]>(['']);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEditing);
 
@@ -53,6 +55,7 @@ export default function NewRecipeScreen() {
           setNotes(data.notes ?? '');
           setProtein(data.protein ?? null);
           setTiming(data.timing ?? null);
+          setIngredients(data.ingredients?.length ? data.ingredients : ['']);
         }
         setLoading(false);
       });
@@ -70,6 +73,7 @@ export default function NewRecipeScreen() {
       notes: notes.trim() || null,
       protein,
       timing,
+      ingredients: ingredients.map((i) => i.trim()).filter(Boolean),
     };
 
     let error;
@@ -157,6 +161,33 @@ export default function NewRecipeScreen() {
           </TouchableOpacity>
         </View>
 
+        <Text style={styles.fieldLabel}>Ingredients (optional)</Text>
+        {ingredients.map((ing, i) => (
+          <View key={i} style={styles.ingredientRow}>
+            <TextInput
+              style={[styles.input, styles.ingredientInput]}
+              placeholder={`e.g. 2 chicken breasts`}
+              placeholderTextColor="#bbb"
+              value={ing}
+              onChangeText={(v) => setIngredients((prev) => prev.map((x, j) => j === i ? v : x))}
+              onSubmitEditing={() => setIngredients((prev) => [...prev, ''])}
+              returnKeyType="next"
+            />
+            {ingredients.length > 1 && (
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => setIngredients((prev) => prev.filter((_, j) => j !== i))}
+              >
+                <Ionicons name="remove-circle" size={22} color="#E53935" />
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+        <TouchableOpacity style={styles.addRowBtn} onPress={() => setIngredients((prev) => [...prev, ''])}>
+          <Ionicons name="add-circle-outline" size={18} color="#CC0000" />
+          <Text style={styles.addRowText}>Add ingredient</Text>
+        </TouchableOpacity>
+
         <Text style={styles.fieldLabel}>Notes (optional)</Text>
         <TextInput
           style={[styles.input, styles.notesInput]}
@@ -203,6 +234,11 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
   },
   notesInput: { minHeight: 100, textAlignVertical: 'top' },
+  ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  ingredientInput: { flex: 1, marginBottom: 0 },
+  removeBtn: { padding: 2 },
+  addRowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, marginBottom: 4 },
+  addRowText: { fontSize: 15, color: '#CC0000', fontWeight: '600' },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14,

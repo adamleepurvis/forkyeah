@@ -8,6 +8,7 @@ export type Recipe = {
   notes: string | null;
   protein: Protein | null;
   timing: Timing | null;
+  ingredients: string[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
