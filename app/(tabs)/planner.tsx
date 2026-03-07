@@ -15,15 +15,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import type { Recipe, MealPlan } from '../../lib/types';
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu'];
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function getWeekDates(offset = 0): Date[] {
   const now = new Date();
   const day = now.getDay();
   const monday = new Date(now);
   monday.setDate(now.getDate() - ((day + 6) % 7) + offset * 7);
-  // Return Mon–Thu only (indices 0–3)
-  return Array.from({ length: 4 }, (_, i) => {
+  return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     return d;
@@ -46,7 +45,7 @@ export default function PlannerScreen() {
     const dates = getWeekDates(weekOffset);
     setWeekDates(dates);
     const start = toDateStr(dates[0]);
-    const end = toDateStr(dates[3]);
+    const end = toDateStr(dates[6]);
 
     const [plansRes, recipesRes] = await Promise.all([
       supabase
@@ -102,7 +101,7 @@ export default function PlannerScreen() {
   }
 
   const weekLabel = weekDates.length
-    ? `${weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDates[3].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    ? `${weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : '';
 
   return (
@@ -161,25 +160,6 @@ export default function PlannerScreen() {
               </View>
             );
           })}
-
-          {/* Friday */}
-          <View style={[styles.dayCard, styles.fridayCard]}>
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayName}>Fri</Text>
-              <Text style={styles.dayDate}>
-                {(() => {
-                  if (!weekDates.length) return '';
-                  const fri = new Date(weekDates[0]);
-                  fri.setDate(weekDates[0].getDate() + 4);
-                  return fri.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                })()}
-              </Text>
-            </View>
-            <View style={styles.orderOutBadge}>
-              <Ionicons name="bag-outline" size={16} color="#999" />
-              <Text style={styles.orderOutText}>Order out</Text>
-            </View>
-          </View>
         </ScrollView>
       )}
 
@@ -236,7 +216,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   dayCardToday: { borderColor: '#CC0000', borderWidth: 2 },
-  fridayCard: { opacity: 0.5 },
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -262,13 +241,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   emptySlotText: { fontSize: 15, color: '#ccc' },
-  orderOutBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 16,
-  },
-  orderOutText: { fontSize: 15, color: '#999' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   modal: { flex: 1, backgroundColor: '#FFF8F3' },
   modalHeader: {

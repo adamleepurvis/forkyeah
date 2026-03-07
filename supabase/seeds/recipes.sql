@@ -101,3 +101,7 @@ insert into recipes (title, url, notes) values
 ('Dumplings + Edamame', null, 'Frozen dumplings or homemade, boiled edamame'),
 ('Fried Rice', null, 'Use leftover rice, whatever veg is around'),
 ('Shallot Pasta', null, 'Caramelized shallots, pasta, parmesan — see NYT version too');
+
+-- Add after the initial insert, run separately if recipes already seeded:
+-- insert into recipes (title, url, notes) values
+-- ('Magical Kale Salad', null, 'You just know it');

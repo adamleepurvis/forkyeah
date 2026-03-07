@@ -13,6 +13,18 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+import type { Protein, Timing } from '../../../lib/types';
+
+const PROTEINS: { value: Protein; label: string }[] = [
+  { value: 'chicken', label: 'Chicken' },
+  { value: 'salmon', label: 'Salmon' },
+  { value: 'shrimp', label: 'Shrimp' },
+  { value: 'beef', label: 'Beef' },
+  { value: 'pork', label: 'Pork' },
+  { value: 'lamb', label: 'Lamb' },
+  { value: 'tofu', label: 'Tofu' },
+  { value: 'veggie', label: 'Veggie' },
+];
 
 export default function NewRecipeScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -22,6 +34,8 @@ export default function NewRecipeScreen() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [notes, setNotes] = useState('');
+  const [protein, setProtein] = useState<Protein | null>(null);
+  const [timing, setTiming] = useState<Timing | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEditing);
 
@@ -37,6 +51,8 @@ export default function NewRecipeScreen() {
           setTitle(data.title);
           setUrl(data.url ?? '');
           setNotes(data.notes ?? '');
+          setProtein(data.protein ?? null);
+          setTiming(data.timing ?? null);
         }
         setLoading(false);
       });
@@ -52,6 +68,8 @@ export default function NewRecipeScreen() {
       title: title.trim(),
       url: url.trim() || null,
       notes: notes.trim() || null,
+      protein,
+      timing,
     };
 
     let error;
@@ -97,6 +115,47 @@ export default function NewRecipeScreen() {
           autoCapitalize="none"
           keyboardType="url"
         />
+
+        <Text style={styles.fieldLabel}>Protein</Text>
+        <View style={styles.chipWrap}>
+          {PROTEINS.map(({ value, label }) => (
+            <TouchableOpacity
+              key={value}
+              style={[styles.chip, protein === value && styles.chipActive]}
+              onPress={() => setProtein(protein === value ? null : value)}
+            >
+              <Text style={[styles.chipText, protein === value && styles.chipTextActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.fieldLabel}>Timing</Text>
+        <View style={styles.timingRow}>
+          <TouchableOpacity
+            style={[styles.timingBtn, timing === 'weekday' && styles.timingBtnActive]}
+            onPress={() => setTiming(timing === 'weekday' ? null : 'weekday')}
+          >
+            <Text style={[styles.timingText, timing === 'weekday' && styles.timingTextActive]}>
+              Weekday
+            </Text>
+            <Text style={[styles.timingSubtext, timing === 'weekday' && styles.timingTextActive]}>
+              Quick, 30–45 min
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.timingBtn, timing === 'weekend' && styles.timingBtnActive]}
+            onPress={() => setTiming(timing === 'weekend' ? null : 'weekend')}
+          >
+            <Text style={[styles.timingText, timing === 'weekend' && styles.timingTextActive]}>
+              Weekend
+            </Text>
+            <Text style={[styles.timingSubtext, timing === 'weekend' && styles.timingTextActive]}>
+              More time needed
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.fieldLabel}>Notes (optional)</Text>
         <TextInput
@@ -144,6 +203,32 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
   },
   notesInput: { minHeight: 100, textAlignVertical: 'top' },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E8E0D8',
+    backgroundColor: '#fff',
+  },
+  chipActive: { backgroundColor: '#CC0000', borderColor: '#CC0000' },
+  chipText: { fontSize: 14, color: '#555', fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
+  timingRow: { flexDirection: 'row', gap: 12 },
+  timingBtn: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8E0D8',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  timingBtnActive: { backgroundColor: '#CC0000', borderColor: '#CC0000' },
+  timingText: { fontSize: 15, fontWeight: '700', color: '#555' },
+  timingSubtext: { fontSize: 11, color: '#aaa', marginTop: 2 },
+  timingTextActive: { color: '#fff' },
   saveButton: {
     backgroundColor: '#CC0000',
     borderRadius: 14,
