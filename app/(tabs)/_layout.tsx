@@ -1,16 +1,18 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useColors } from '../../lib/colors';
 
 export default function TabsLayout() {
+  const C = useColors();
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: '#FFF8F3' },
-        headerTitleStyle: { fontWeight: '700', fontSize: 20, color: '#1A1A2E' },
+        headerStyle: { backgroundColor: C.bg },
+        headerTitleStyle: { fontWeight: '700', fontSize: 20, color: C.text },
         headerShadowVisible: false,
-        tabBarStyle: { backgroundColor: '#FFF8F3', borderTopColor: '#E8E0D8' },
-        tabBarActiveTintColor: '#CC0000',
-        tabBarInactiveTintColor: '#999',
+        tabBarStyle: { backgroundColor: C.bg, borderTopColor: C.border },
+        tabBarActiveTintColor: C.red,
+        tabBarInactiveTintColor: C.textMuted,
       }}
     >
       <Tabs.Screen
@@ -27,6 +29,7 @@ export default function TabsLayout() {
         name="planner"
         options={{
           title: 'Planner',
+          headerTitle: 'Planner',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),

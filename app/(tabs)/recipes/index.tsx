@@ -5,8 +5,10 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '../../../lib/supabase';
 import { getSource, type Recipe, type Protein, type Timing } from '../../../lib/types';
+import { useColors, type Colors } from '../../../lib/colors';
 
 const PROTEINS: Protein[] = ['chicken', 'salmon', 'shrimp', 'beef', 'pork', 'lamb', 'tofu', 'veggie'];
 const PROTEIN_LABEL: Record<Protein, string> = {
@@ -55,6 +57,8 @@ export default function RecipesScreen() {
   const [userEmail, setUserEmail] = useState('');
   const [filters, setFilters] = useState<Filters>({ sources: [], proteins: [], timings: [], notMadeRecently: false });
   const router = useRouter();
+  const C = useColors();
+  const styles = makeStyles(C);
 
   const fetchData = useCallback(async () => {
     const thirtyDaysAgo = new Date();
@@ -84,12 +88,12 @@ export default function RecipesScreen() {
   const filtered = applyFilters(recipes, filters, search, recentIds);
   const activeFilters = filterCount(filters);
 
-  // "Try something new" = recipes not used in 30 days, shuffled, max 8
   const tryNew = shuffle(recipes.filter((r) => !recentIds.has(r.id))).slice(0, 8);
   const showTryNew = !search && !activeFilters && tryNew.length > 0;
 
   function doShuffle() {
     if (filtered.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const pick = filtered[Math.floor(Math.random() * filtered.length)];
     router.push(`/(tabs)/recipes/${pick.id}`);
   }
@@ -105,7 +109,7 @@ export default function RecipesScreen() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#CC0000" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>;
   }
 
   const ListHeader = showTryNew ? (
@@ -114,7 +118,14 @@ export default function RecipesScreen() {
       <Text style={styles.tryNewSub}>Not planned in the last 30 days</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tryNewScroll}>
         {tryNew.map((r) => (
-          <TouchableOpacity key={r.id} style={styles.tryNewCard} onPress={() => router.push(`/(tabs)/recipes/${r.id}`)}>
+          <TouchableOpacity
+            key={r.id}
+            style={styles.tryNewCard}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push(`/(tabs)/recipes/${r.id}`);
+            }}
+          >
             <Text style={styles.tryNewCardTitle} numberOfLines={2}>{r.title}</Text>
             {r.protein && <Text style={styles.tryNewCardTag}>{PROTEIN_LABEL[r.protein as Protein]}</Text>}
           </TouchableOpacity>
@@ -129,26 +140,32 @@ export default function RecipesScreen() {
         <Text style={styles.title}>Recipes</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconBtn} onPress={() => setAccountOpen(true)}>
-            <Ionicons name="person-circle-outline" size={28} color="#888" />
+            <Ionicons name="person-circle-outline" size={28} color={C.textMuted} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => setFiltersOpen(true)}>
-            <Ionicons name="options-outline" size={22} color={activeFilters ? '#CC0000' : '#888'} />
+            <Ionicons name="options-outline" size={22} color={activeFilters ? C.red : C.textMuted} />
             {activeFilters > 0 && (
               <View style={styles.badge}><Text style={styles.badgeText}>{activeFilters}</Text></View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/(tabs)/recipes/new')}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/(tabs)/recipes/new');
+            }}
+          >
             <Ionicons name="add" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.searchRow}>
-        <Ionicons name="search-outline" size={18} color="#bbb" style={styles.searchIcon} />
+        <Ionicons name="search-outline" size={18} color={C.placeholder} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search recipes..."
-          placeholderTextColor="#bbb"
+          placeholderTextColor={C.placeholder}
           value={search}
           onChangeText={setSearch}
           clearButtonMode="while-editing"
@@ -158,7 +175,7 @@ export default function RecipesScreen() {
           onPress={doShuffle}
           disabled={filtered.length === 0}
         >
-          <Ionicons name="shuffle-outline" size={20} color={filtered.length > 0 ? '#CC0000' : '#ddd'} />
+          <Ionicons name="shuffle-outline" size={20} color={filtered.length > 0 ? C.red : C.border} />
         </TouchableOpacity>
       </View>
 
@@ -173,7 +190,7 @@ export default function RecipesScreen() {
 
       {filtered.length === 0 && (search || activeFilters) ? (
         <View style={styles.center}>
-          <Ionicons name="search-outline" size={64} color="#E8E0D8" />
+          <Ionicons name="search-outline" size={64} color={C.border} />
           <Text style={styles.emptyText}>No recipes match</Text>
           <TouchableOpacity onPress={() => { setFilters({ sources: [], proteins: [], timings: [], notMadeRecently: false }); setSearch(''); }}>
             <Text style={styles.clearFilters}>Clear filters</Text>
@@ -190,7 +207,10 @@ export default function RecipesScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push(`/(tabs)/recipes/${item.id}`)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/(tabs)/recipes/${item.id}`);
+              }}
               activeOpacity={0.7}
             >
               <View style={styles.cardLeft}>
@@ -211,7 +231,7 @@ export default function RecipesScreen() {
                   )}
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#ddd" />
+              <Ionicons name="chevron-forward" size={16} color={C.border} />
             </TouchableOpacity>
           )}
         />
@@ -223,7 +243,7 @@ export default function RecipesScreen() {
           <View style={styles.accountSheet}>
             <Text style={styles.accountEmail}>{userEmail}</Text>
             <TouchableOpacity style={styles.signOutBtn} onPress={() => { setAccountOpen(false); signOut(); }}>
-              <Ionicons name="log-out-outline" size={18} color="#CC0000" />
+              <Ionicons name="log-out-outline" size={18} color={C.red} />
               <Text style={styles.signOutText}>Sign Out</Text>
             </TouchableOpacity>
           </View>
@@ -236,7 +256,7 @@ export default function RecipesScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Filter Recipes</Text>
             <TouchableOpacity onPress={() => setFiltersOpen(false)}>
-              <Ionicons name="close" size={26} color="#1A1A2E" />
+              <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalContent}>
@@ -292,109 +312,107 @@ export default function RecipesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF8F3' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12,
-  },
-  title: { fontSize: 32, fontWeight: '800', color: '#1A1A2E' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  iconBtn: { padding: 6, position: 'relative' },
-  badge: {
-    position: 'absolute', top: 2, right: 2, backgroundColor: '#CC0000',
-    borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center',
-  },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  addButton: {
-    backgroundColor: '#CC0000', width: 44, height: 44,
-    borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-  },
-  searchRow: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 20, marginBottom: 10,
-    backgroundColor: '#fff', borderRadius: 12,
-    borderWidth: 1, borderColor: '#E8E0D8', paddingHorizontal: 12,
-  },
-  searchIcon: { marginRight: 6 },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 15, color: '#1A1A2E' },
-  shuffleBtn: { padding: 6 },
-  shuffleBtnDisabled: { opacity: 0.4 },
-  activeFilterRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingBottom: 8,
-  },
-  activeFilterText: { fontSize: 13, color: '#888' },
-  clearFilters: { fontSize: 13, color: '#CC0000', fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingBottom: 20 },
-  // Try something new
-  tryNewSection: { marginBottom: 20 },
-  tryNewTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A2E', marginBottom: 2 },
-  tryNewSub: { fontSize: 12, color: '#aaa', marginBottom: 12 },
-  tryNewScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
-  tryNewCard: {
-    width: 140, backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginRight: 10, borderWidth: 1, borderColor: '#E8E0D8',
-    justifyContent: 'space-between', minHeight: 90,
-  },
-  tryNewCardTitle: { fontSize: 14, fontWeight: '700', color: '#1A1A2E', marginBottom: 8 },
-  tryNewCardTag: { fontSize: 11, color: '#CC0000', fontWeight: '600' },
-  // Recipe cards
-  card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 10,
-    borderWidth: 1, borderColor: '#E8E0D8', flexDirection: 'row', alignItems: 'center',
-  },
-  cardLeft: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E', marginBottom: 6 },
-  cardTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  tag: { backgroundColor: '#F0E8E0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  tagTiming: { backgroundColor: '#E8F0FF' },
-  tagSource: { backgroundColor: '#F0F0F0' },
-  tagText: { fontSize: 11, color: '#666', fontWeight: '600' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  emptyText: { fontSize: 18, fontWeight: '600', color: '#888' },
-  // Account
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
-  accountSheet: {
-    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 24, paddingBottom: 40, gap: 16,
-  },
-  accountEmail: { fontSize: 15, color: '#888', textAlign: 'center' },
-  signOutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#FFD0D0',
-    backgroundColor: '#FFF5F5',
-  },
-  signOutText: { fontSize: 16, fontWeight: '700', color: '#CC0000' },
-  // Filter modal
-  modal: { flex: 1, backgroundColor: '#FFF8F3' },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: '#E8E0D8',
-  },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
-  modalContent: { padding: 20, paddingBottom: 40 },
-  filterSectionLabel: {
-    fontSize: 13, fontWeight: '700', color: '#CC0000',
-    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 20,
-  },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: '#E8E0D8', backgroundColor: '#fff',
-  },
-  chipActive: { backgroundColor: '#CC0000', borderColor: '#CC0000' },
-  chipText: { fontSize: 14, color: '#555', fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
-  modalFooter: {
-    flexDirection: 'row', gap: 12, padding: 20,
-    borderTopWidth: 1, borderTopColor: '#E8E0D8',
-  },
-  clearBtn: {
-    flex: 1, borderRadius: 12, paddingVertical: 14,
-    alignItems: 'center', borderWidth: 1, borderColor: '#E8E0D8',
-  },
-  clearBtnText: { fontSize: 16, color: '#888', fontWeight: '600' },
-  applyBtn: { flex: 2, backgroundColor: '#CC0000', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  applyBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
-});
+function makeStyles(C: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    header: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12,
+    },
+    title: { fontSize: 32, fontWeight: '800', color: C.text },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    iconBtn: { padding: 6, position: 'relative' },
+    badge: {
+      position: 'absolute', top: 2, right: 2, backgroundColor: C.red,
+      borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center',
+    },
+    badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    addButton: {
+      backgroundColor: C.red, width: 44, height: 44,
+      borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    },
+    searchRow: {
+      flexDirection: 'row', alignItems: 'center',
+      marginHorizontal: 20, marginBottom: 10,
+      backgroundColor: C.card, borderRadius: 12,
+      borderWidth: 1, borderColor: C.border, paddingHorizontal: 12,
+    },
+    searchIcon: { marginRight: 6 },
+    searchInput: { flex: 1, paddingVertical: 11, fontSize: 15, color: C.text },
+    shuffleBtn: { padding: 6 },
+    shuffleBtnDisabled: { opacity: 0.4 },
+    activeFilterRow: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      paddingHorizontal: 20, paddingBottom: 8,
+    },
+    activeFilterText: { fontSize: 13, color: C.textMuted },
+    clearFilters: { fontSize: 13, color: C.red, fontWeight: '600' },
+    list: { paddingHorizontal: 20, paddingBottom: 20 },
+    tryNewSection: { marginBottom: 20 },
+    tryNewTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 2 },
+    tryNewSub: { fontSize: 12, color: C.textMuted, marginBottom: 12 },
+    tryNewScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
+    tryNewCard: {
+      width: 140, backgroundColor: C.card, borderRadius: 14, padding: 14,
+      marginRight: 10, borderWidth: 1, borderColor: C.border,
+      justifyContent: 'space-between', minHeight: 90,
+    },
+    tryNewCardTitle: { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 8 },
+    tryNewCardTag: { fontSize: 11, color: C.red, fontWeight: '600' },
+    card: {
+      backgroundColor: C.card, borderRadius: 16, padding: 16, marginBottom: 10,
+      borderWidth: 1, borderColor: C.border, flexDirection: 'row', alignItems: 'center',
+    },
+    cardLeft: { flex: 1 },
+    cardTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 6 },
+    cardTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+    tag: { backgroundColor: C.tagProtein, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+    tagTiming: { backgroundColor: C.tagTiming },
+    tagSource: { backgroundColor: C.tagSource },
+    tagText: { fontSize: 11, color: C.tagText, fontWeight: '600' },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+    emptyText: { fontSize: 18, fontWeight: '600', color: C.textMuted },
+    overlay: { flex: 1, backgroundColor: C.overlay, justifyContent: 'flex-end' },
+    accountSheet: {
+      backgroundColor: C.accountSheet, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      padding: 24, paddingBottom: 40, gap: 16,
+    },
+    accountEmail: { fontSize: 15, color: C.textMuted, textAlign: 'center' },
+    signOutBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.signOutBorder,
+      backgroundColor: C.signOutBg,
+    },
+    signOutText: { fontSize: 16, fontWeight: '700', color: C.red },
+    modal: { flex: 1, backgroundColor: C.bg },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    modalTitle: { fontSize: 22, fontWeight: '800', color: C.text },
+    modalContent: { padding: 20, paddingBottom: 40 },
+    filterSectionLabel: {
+      fontSize: 13, fontWeight: '700', color: C.red,
+      textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 20,
+    },
+    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: {
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      borderWidth: 1, borderColor: C.border, backgroundColor: C.chipBg,
+    },
+    chipActive: { backgroundColor: C.red, borderColor: C.red },
+    chipText: { fontSize: 14, color: C.textSec, fontWeight: '600' },
+    chipTextActive: { color: '#fff' },
+    modalFooter: {
+      flexDirection: 'row', gap: 12, padding: 20,
+      borderTopWidth: 1, borderTopColor: C.border,
+    },
+    clearBtn: {
+      flex: 1, borderRadius: 12, paddingVertical: 14,
+      alignItems: 'center', borderWidth: 1, borderColor: C.border,
+    },
+    clearBtnText: { fontSize: 16, color: C.textMuted, fontWeight: '600' },
+    applyBtn: { flex: 2, backgroundColor: C.red, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    applyBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
+  });
+}

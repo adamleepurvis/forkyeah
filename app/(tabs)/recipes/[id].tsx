@@ -5,8 +5,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '../../../lib/supabase';
 import { getSource, type Recipe, type Protein } from '../../../lib/types';
+import { useColors, type Colors } from '../../../lib/colors';
 
 const PROTEIN_LABEL: Record<Protein, string> = {
   chicken: 'Chicken', salmon: 'Salmon', shrimp: 'Shrimp', beef: 'Beef',
@@ -38,6 +40,8 @@ export default function RecipeDetailScreen() {
   const [selectedIngredients, setSelectedIngredients] = useState<Set<number>>(new Set());
   const [addingToShopping, setAddingToShopping] = useState(false);
   const router = useRouter();
+  const C = useColors();
+  const styles = makeStyles(C);
   const weekDates = getWeekDates();
 
   useEffect(() => {
@@ -64,12 +68,12 @@ export default function RecipeDetailScreen() {
     } else {
       await supabase.from('meal_plans').insert({ date: dateStr, meal_slot: 'dinner', recipe_id: id });
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPlannerOpen(false);
     Alert.alert('Added!', `${recipe?.title} added to ${weekDates.find((d) => d.dateStr === dateStr)?.label}`);
   }
 
   function openShopping() {
-    // Pre-select all ingredients
     const allIndices = new Set((recipe?.ingredients ?? []).map((_, i) => i));
     setSelectedIngredients(allIndices);
     setShoppingOpen(true);
@@ -85,17 +89,21 @@ export default function RecipeDetailScreen() {
   }
 
   async function addToShopping() {
-    const toAdd = (recipe?.ingredients ?? []).filter((_, i) => selectedIngredients.has(i));
-    if (toAdd.length === 0) { setShoppingOpen(false); return; }
+    if (!recipe || selectedIngredients.size === 0) return;
     setAddingToShopping(true);
-    await supabase.from('shopping_items').insert(toAdd.map((name) => ({ name })));
+    const items = [...selectedIngredients].map((i) => ({ name: recipe.ingredients[i] }));
+    const { error } = await supabase.from('shopping_items').insert(items);
     setAddingToShopping(false);
-    setShoppingOpen(false);
-    Alert.alert('Added!', `${toAdd.length} ingredient${toAdd.length !== 1 ? 's' : ''} added to your shopping list.`);
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShoppingOpen(false);
+    }
   }
 
-  async function deleteRecipe() {
-    Alert.alert('Delete Recipe', `Delete "${recipe?.title}"?`, [
+  function deleteRecipe() {
+    Alert.alert('Delete recipe?', 'This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -109,7 +117,7 @@ export default function RecipeDetailScreen() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#CC0000" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>;
   }
   if (!recipe) return null;
 
@@ -123,7 +131,7 @@ export default function RecipeDetailScreen() {
           <Text style={styles.title}>{recipe.title}</Text>
           <View style={styles.actions}>
             <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/recipes/new', params: { id } })} style={styles.actionBtn}>
-              <Ionicons name="pencil-outline" size={20} color="#CC0000" />
+              <Ionicons name="pencil-outline" size={20} color={C.red} />
             </TouchableOpacity>
             <TouchableOpacity onPress={deleteRecipe} style={styles.actionBtn}>
               <Ionicons name="trash-outline" size={20} color="#E53935" />
@@ -131,7 +139,6 @@ export default function RecipeDetailScreen() {
           </View>
         </View>
 
-        {/* Tags */}
         <View style={styles.tagRow}>
           {recipe.protein && (
             <View style={styles.tag}><Text style={styles.tagText}>{PROTEIN_LABEL[recipe.protein as Protein]}</Text></View>
@@ -150,18 +157,17 @@ export default function RecipeDetailScreen() {
 
         {recipe.url && (
           <TouchableOpacity style={styles.linkButton} onPress={() => Linking.openURL(recipe.url!)}>
-            <Ionicons name="open-outline" size={18} color="#CC0000" />
+            <Ionicons name="open-outline" size={18} color={C.red} />
             <Text style={styles.linkText}>Open Recipe</Text>
           </TouchableOpacity>
         )}
 
-        {/* Ingredients */}
         {hasIngredients && (
           <>
             <View style={styles.sectionRow}>
               <Text style={styles.sectionLabel}>Ingredients</Text>
               <TouchableOpacity style={styles.addToShoppingBtn} onPress={openShopping}>
-                <Ionicons name="cart-outline" size={15} color="#CC0000" />
+                <Ionicons name="cart-outline" size={15} color={C.red} />
                 <Text style={styles.addToShoppingText}>Add to shopping</Text>
               </TouchableOpacity>
             </View>
@@ -188,12 +194,12 @@ export default function RecipeDetailScreen() {
         )}
 
         <View style={styles.bottomButtons}>
-          <TouchableOpacity style={styles.plannerBtn} onPress={openPlanner}>
-            <Ionicons name="calendar-outline" size={18} color="#CC0000" />
+          <TouchableOpacity style={styles.plannerBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openPlanner(); }}>
+            <Ionicons name="calendar-outline" size={18} color={C.red} />
             <Text style={styles.plannerBtnText}>Add to This Week</Text>
           </TouchableOpacity>
           {hasIngredients && (
-            <TouchableOpacity style={styles.shoppingBtn} onPress={openShopping}>
+            <TouchableOpacity style={styles.shoppingBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openShopping(); }}>
               <Ionicons name="cart-outline" size={18} color="#fff" />
               <Text style={styles.shoppingBtnText}>Add to Shopping</Text>
             </TouchableOpacity>
@@ -207,7 +213,7 @@ export default function RecipeDetailScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Pick a Day</Text>
             <TouchableOpacity onPress={() => setPlannerOpen(false)}>
-              <Ionicons name="close" size={26} color="#1A1A2E" />
+              <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
           </View>
           <FlatList
@@ -223,7 +229,7 @@ export default function RecipeDetailScreen() {
                     <Text style={[styles.dayOptionLabel, isToday && styles.dayOptionToday]}>{item.label}</Text>
                     {hasRecipe && <Text style={styles.dayOptionSub}>Already has a meal — will replace</Text>}
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#ccc" />
+                  <Ionicons name="chevron-forward" size={18} color={C.border} />
                 </TouchableOpacity>
               );
             }}
@@ -237,10 +243,9 @@ export default function RecipeDetailScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add to Shopping</Text>
             <TouchableOpacity onPress={() => setShoppingOpen(false)}>
-              <Ionicons name="close" size={26} color="#1A1A2E" />
+              <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
           </View>
-
           <View style={styles.selectAllRow}>
             <TouchableOpacity onPress={() => setSelectedIngredients(new Set((recipe.ingredients ?? []).map((_, i) => i)))}>
               <Text style={styles.selectAllText}>Select all</Text>
@@ -249,7 +254,6 @@ export default function RecipeDetailScreen() {
               <Text style={styles.selectAllText}>Clear</Text>
             </TouchableOpacity>
           </View>
-
           <FlatList
             data={recipe.ingredients ?? []}
             keyExtractor={(_, i) => String(i)}
@@ -266,7 +270,6 @@ export default function RecipeDetailScreen() {
               );
             }}
           />
-
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShoppingOpen(false)}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -289,84 +292,85 @@ export default function RecipeDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF8F3' },
-  content: { padding: 20, paddingBottom: 40 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8F3' },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
-  title: { fontSize: 26, fontWeight: '800', color: '#1A1A2E', flex: 1, marginRight: 12 },
-  actions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 8 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 20 },
-  tag: { backgroundColor: '#F0E8E0', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  tagTiming: { backgroundColor: '#E8F0FF' },
-  tagSource: { backgroundColor: '#F0F0F0' },
-  tagText: { fontSize: 12, color: '#666', fontWeight: '600' },
-  linkButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#FFF0F0', borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: '#FFCCCC', marginBottom: 24,
-  },
-  linkText: { fontSize: 16, fontWeight: '600', color: '#CC0000' },
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#CC0000', textTransform: 'uppercase', letterSpacing: 1 },
-  addToShoppingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  addToShoppingText: { fontSize: 13, color: '#CC0000', fontWeight: '600' },
-  ingredientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 10 },
-  bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#CC0000' },
-  ingredientText: { fontSize: 15, color: '#1A1A2E', flex: 1 },
-  notesBox: { backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E8E0D8' },
-  notesText: { fontSize: 15, color: '#555', lineHeight: 22 },
-  emptyState: { fontSize: 15, color: '#bbb', textAlign: 'center', marginTop: 40 },
-  bottomButtons: { flexDirection: 'row', gap: 12, marginTop: 32 },
-  plannerBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 14, paddingVertical: 15, borderWidth: 1, borderColor: '#CC0000',
-  },
-  plannerBtnText: { fontSize: 15, fontWeight: '700', color: '#CC0000' },
-  shoppingBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#CC0000', borderRadius: 14, paddingVertical: 15,
-  },
-  shoppingBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  modal: { flex: 1, backgroundColor: '#FFF8F3' },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: '#E8E0D8',
-  },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
-  selectAllRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F0E8E0',
-  },
-  selectAllText: { fontSize: 14, color: '#CC0000', fontWeight: '600' },
-  ingredientOption: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0E8E0',
-  },
-  checkbox: {
-    width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: '#E8E0D8',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  checkboxSelected: { backgroundColor: '#CC0000', borderColor: '#CC0000' },
-  ingredientOptionText: { fontSize: 16, color: '#1A1A2E', flex: 1 },
-  modalFooter: {
-    flexDirection: 'row', gap: 12, padding: 20,
-    borderTopWidth: 1, borderTopColor: '#E8E0D8',
-  },
-  cancelBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: '#E8E0D8' },
-  cancelBtnText: { fontSize: 16, color: '#888', fontWeight: '600' },
-  addBtn: { flex: 2, backgroundColor: '#CC0000', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  addBtnDisabled: { backgroundColor: '#E8E0D8' },
-  addBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
-  dayOption: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 16,
-    marginBottom: 10, borderWidth: 1, borderColor: '#E8E0D8',
-  },
-  dayOptionLabel: { fontSize: 16, fontWeight: '600', color: '#1A1A2E' },
-  dayOptionToday: { color: '#CC0000' },
-  dayOptionSub: { fontSize: 12, color: '#aaa', marginTop: 2 },
-});
+function makeStyles(C: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    content: { padding: 20, paddingBottom: 40 },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+    titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
+    title: { fontSize: 26, fontWeight: '800', color: C.text, flex: 1, marginRight: 12 },
+    actions: { flexDirection: 'row', gap: 8 },
+    actionBtn: { padding: 8 },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 20 },
+    tag: { backgroundColor: C.tagProtein, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+    tagTiming: { backgroundColor: C.tagTiming },
+    tagSource: { backgroundColor: C.tagSource },
+    tagText: { fontSize: 12, color: C.tagText, fontWeight: '600' },
+    linkButton: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: C.redLight, borderRadius: 12, padding: 16,
+      borderWidth: 1, borderColor: C.redBorder, marginBottom: 24,
+    },
+    linkText: { fontSize: 16, fontWeight: '600', color: C.red },
+    sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    sectionLabel: { fontSize: 13, fontWeight: '700', color: C.red, textTransform: 'uppercase', letterSpacing: 1 },
+    addToShoppingBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    addToShoppingText: { fontSize: 13, color: C.red, fontWeight: '600' },
+    ingredientRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 10 },
+    bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.red },
+    ingredientText: { fontSize: 15, color: C.text, flex: 1 },
+    notesBox: { backgroundColor: C.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: C.border },
+    notesText: { fontSize: 15, color: C.textSec, lineHeight: 22 },
+    emptyState: { fontSize: 15, color: C.textMuted, textAlign: 'center', marginTop: 40 },
+    bottomButtons: { flexDirection: 'row', gap: 12, marginTop: 32 },
+    plannerBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      borderRadius: 14, paddingVertical: 15, borderWidth: 1, borderColor: C.red,
+    },
+    plannerBtnText: { fontSize: 15, fontWeight: '700', color: C.red },
+    shoppingBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: C.red, borderRadius: 14, paddingVertical: 15,
+    },
+    shoppingBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+    modal: { flex: 1, backgroundColor: C.bg },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    modalTitle: { fontSize: 22, fontWeight: '800', color: C.text },
+    selectAllRow: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      paddingHorizontal: 20, paddingVertical: 12,
+      borderBottomWidth: 1, borderBottomColor: C.borderLight,
+    },
+    selectAllText: { fontSize: 14, color: C.red, fontWeight: '600' },
+    ingredientOption: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.borderLight,
+    },
+    checkbox: {
+      width: 24, height: 24, borderRadius: 12,
+      borderWidth: 2, borderColor: C.border, alignItems: 'center', justifyContent: 'center',
+    },
+    checkboxSelected: { backgroundColor: C.red, borderColor: C.red },
+    ingredientOptionText: { fontSize: 16, color: C.text, flex: 1 },
+    modalFooter: {
+      flexDirection: 'row', gap: 12, padding: 20,
+      borderTopWidth: 1, borderTopColor: C.border,
+    },
+    cancelBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+    cancelBtnText: { fontSize: 16, color: C.textMuted, fontWeight: '600' },
+    addBtn: { flex: 2, backgroundColor: C.red, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    addBtnDisabled: { backgroundColor: C.border },
+    addBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
+    dayOption: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: C.card, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 16,
+      marginBottom: 10, borderWidth: 1, borderColor: C.border,
+    },
+    dayOptionLabel: { fontSize: 16, fontWeight: '600', color: C.text },
+    dayOptionToday: { color: C.red },
+    dayOptionSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  });
+}

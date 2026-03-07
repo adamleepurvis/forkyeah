@@ -1,21 +1,17 @@
 import { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { useColors, type Colors } from '../../lib/colors';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const C = useColors();
+  const styles = makeStyles(C);
 
   async function signIn() {
     if (!email || !password) {
@@ -29,10 +25,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.inner}>
         <Text style={styles.logo}>ForkYeah</Text>
         <Text style={styles.tagline}>Your meal planner</Text>
@@ -40,7 +33,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#999"
+          placeholderTextColor={C.placeholder}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -50,7 +43,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#999"
+          placeholderTextColor={C.placeholder}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -58,61 +51,25 @@ export default function LoginScreen() {
         />
 
         <TouchableOpacity style={styles.button} onPress={signIn} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF8F3',
-  },
-  inner: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  logo: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#CC0000',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 16,
-    color: '#888',
-    textAlign: 'center',
-    marginBottom: 48,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E8E0D8',
-    color: '#1A1A2E',
-  },
-  button: {
-    backgroundColor: '#CC0000',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-});
+function makeStyles(C: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 32 },
+    logo: { fontSize: 40, fontWeight: '800', color: C.red, textAlign: 'center', marginBottom: 8 },
+    tagline: { fontSize: 16, color: C.textMuted, textAlign: 'center', marginBottom: 48 },
+    input: {
+      backgroundColor: C.inputBg, borderRadius: 12, paddingHorizontal: 16,
+      paddingVertical: 14, fontSize: 16, marginBottom: 12,
+      borderWidth: 1, borderColor: C.border, color: C.text,
+    },
+    button: { backgroundColor: C.red, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+    buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  });
+}

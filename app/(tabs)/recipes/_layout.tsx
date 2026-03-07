@@ -1,13 +1,15 @@
 import { Stack } from 'expo-router';
+import { useColors } from '../../../lib/colors';
 
 export default function RecipesLayout() {
+  const C = useColors();
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: '#FFF8F3' },
-        headerTitleStyle: { fontWeight: '700', fontSize: 20, color: '#1A1A2E' },
+        headerStyle: { backgroundColor: C.bg },
+        headerTitleStyle: { fontWeight: '700', fontSize: 20, color: C.text },
         headerShadowVisible: false,
-        headerTintColor: '#CC0000',
+        headerTintColor: C.red,
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Fork Yeah!' }} />

@@ -5,8 +5,10 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '../../lib/supabase';
 import type { Recipe, MealPlan } from '../../lib/types';
+import { useColors, type Colors } from '../../lib/colors';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -30,8 +32,6 @@ function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
-// Build a week: 1 fish, 1 chicken, 2 wildcard (no beef/lamb)
-// Returns 4 picks for Mon–Thu in shuffled order
 function buildWeekPicks(recipes: Recipe[]): Recipe[] {
   const fish = shuffle(recipes.filter((r) => r.protein === 'salmon' || r.protein === 'shrimp'));
   const chicken = shuffle(recipes.filter((r) => r.protein === 'chicken'));
@@ -50,7 +50,6 @@ function buildWeekPicks(recipes: Recipe[]): Recipe[] {
   const chickenPick = pick(chicken);
   if (chickenPick) { picks.push(chickenPick); usedIds.add(chickenPick.id); }
 
-  // Fill remaining slots (up to 4 total) with wildcards
   while (picks.length < 4) {
     const w = pick(wildcard);
     if (!w) break;
@@ -75,6 +74,8 @@ export default function PlannerScreen() {
   const [picking, setPicking] = useState<string | null>(null);
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildPicks, setBuildPicks] = useState<{ date: Date; recipe: Recipe }[]>([]);
+  const C = useColors();
+  const styles = makeStyles(C);
 
   const fetchData = useCallback(async () => {
     const dates = getWeekDates(weekOffset);
@@ -113,6 +114,7 @@ export default function PlannerScreen() {
     } else {
       await supabase.from('meal_plans').insert({ date: picking, meal_slot: 'dinner', recipe_id: recipe.id });
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPicking(null);
     fetchData();
   }
@@ -125,6 +127,7 @@ export default function PlannerScreen() {
   }
 
   function openBuildWeek() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const monThu = weekDates.slice(0, 4);
     const picks = buildWeekPicks(recipes);
     setBuildPicks(monThu.map((date, i) => ({ date, recipe: picks[i] })).filter((p) => p.recipe));
@@ -132,6 +135,7 @@ export default function PlannerScreen() {
   }
 
   function regenerate() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const monThu = weekDates.slice(0, 4);
     const picks = buildWeekPicks(recipes);
     setBuildPicks(monThu.map((date, i) => ({ date, recipe: picks[i] })).filter((p) => p.recipe));
@@ -148,10 +152,10 @@ export default function PlannerScreen() {
         await supabase.from('meal_plans').insert({ date: dateStr, meal_slot: 'dinner', recipe_id: recipe.id });
       }
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     fetchData();
   }
 
-  // Variety nudge: protein counts for the current week
   const proteinCounts: Record<string, number> = {};
   for (const plan of mealPlans) {
     const p = plan.recipe?.protein;
@@ -165,28 +169,26 @@ export default function PlannerScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Week nav */}
       <View style={styles.weekNav}>
         <TouchableOpacity onPress={() => setWeekOffset((o) => o - 1)} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={22} color="#CC0000" />
+          <Ionicons name="chevron-back" size={22} color={C.red} />
         </TouchableOpacity>
         <Text style={styles.weekLabel}>{weekLabel}</Text>
         <TouchableOpacity onPress={() => setWeekOffset((o) => o + 1)} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={22} color="#CC0000" />
+          <Ionicons name="chevron-forward" size={22} color={C.red} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.buildBtn} onPress={openBuildWeek}>
-          <Ionicons name="sparkles-outline" size={18} color="#CC0000" />
+          <Ionicons name="sparkles-outline" size={18} color={C.red} />
         </TouchableOpacity>
       </View>
 
-      {/* Variety nudge */}
       {proteinEntries.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.varietyRow} contentContainerStyle={styles.varietyContent}>
           {proteinEntries.map(([protein, count]) => {
             const warn = count >= 2;
             return (
               <View key={protein} style={[styles.varietyChip, warn && styles.varietyChipWarn]}>
-                {warn && <Ionicons name="warning-outline" size={12} color="#CC0000" style={{ marginRight: 3 }} />}
+                {warn && <Ionicons name="warning-outline" size={12} color={C.red} style={{ marginRight: 3 }} />}
                 <Text style={[styles.varietyText, warn && styles.varietyTextWarn]}>
                   {PROTEIN_LABEL[protein] ?? protein}{count > 1 ? ` ×${count}` : ''}
                 </Text>
@@ -197,7 +199,7 @@ export default function PlannerScreen() {
       )}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#CC0000" /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
           {weekDates.map((date, i) => {
@@ -217,16 +219,16 @@ export default function PlannerScreen() {
                 {plan?.recipe ? (
                   <TouchableOpacity
                     style={styles.assignedRecipe}
-                    onPress={() => setPicking(dateStr)}
-                    onLongPress={() => clearSlot(dateStr)}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking(dateStr); }}
+                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); clearSlot(dateStr); }}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.assignedTitle}>{plan.recipe.title}</Text>
                     <Text style={styles.assignedHint}>Tap to change · Hold to clear</Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity style={styles.emptySlot} onPress={() => setPicking(dateStr)}>
-                    <Ionicons name="add-circle-outline" size={22} color="#E8E0D8" />
+                  <TouchableOpacity style={styles.emptySlot} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking(dateStr); }}>
+                    <Ionicons name="add-circle-outline" size={22} color={C.border} />
                     <Text style={styles.emptySlotText}>Add dinner</Text>
                   </TouchableOpacity>
                 )}
@@ -242,7 +244,7 @@ export default function PlannerScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Pick a Recipe</Text>
             <TouchableOpacity onPress={() => setPicking(null)}>
-              <Ionicons name="close" size={26} color="#1A1A2E" />
+              <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
           </View>
           {recipes.length === 0 ? (
@@ -258,11 +260,9 @@ export default function PlannerScreen() {
                 <TouchableOpacity style={styles.recipeOption} onPress={() => assignRecipe(item)}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.recipeOptionText}>{item.title}</Text>
-                    {item.protein && (
-                      <Text style={styles.recipeOptionSub}>{PROTEIN_LABEL[item.protein]}</Text>
-                    )}
+                    {item.protein && <Text style={styles.recipeOptionSub}>{PROTEIN_LABEL[item.protein]}</Text>}
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#ccc" />
+                  <Ionicons name="chevron-forward" size={18} color={C.border} />
                 </TouchableOpacity>
               )}
             />
@@ -276,31 +276,25 @@ export default function PlannerScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Build This Week</Text>
             <TouchableOpacity onPress={() => setBuildOpen(false)}>
-              <Ionicons name="close" size={26} color="#1A1A2E" />
+              <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
           </View>
-
           <ScrollView contentContainerStyle={styles.buildContent}>
             <Text style={styles.buildSubtitle}>1 fish · 1 chicken · 2 wildcards, shuffled across Mon–Thu</Text>
-
             {buildPicks.map(({ date, recipe }, i) => (
               <View key={i} style={styles.buildRow}>
                 <Text style={styles.buildDay}>{DAY_NAMES[weekDates.indexOf(date)]}</Text>
                 <View style={styles.buildRecipeCard}>
                   <Text style={styles.buildRecipeTitle}>{recipe.title}</Text>
-                  {recipe.protein && (
-                    <Text style={styles.buildRecipeProtein}>{PROTEIN_LABEL[recipe.protein]}</Text>
-                  )}
+                  {recipe.protein && <Text style={styles.buildRecipeProtein}>{PROTEIN_LABEL[recipe.protein]}</Text>}
                 </View>
               </View>
             ))}
-
             <TouchableOpacity style={styles.regenerateBtn} onPress={regenerate}>
-              <Ionicons name="refresh-outline" size={18} color="#CC0000" />
+              <Ionicons name="refresh-outline" size={18} color={C.red} />
               <Text style={styles.regenerateText}>Shuffle again</Text>
             </TouchableOpacity>
           </ScrollView>
-
           <View style={styles.buildFooter}>
             <TouchableOpacity style={styles.clearBtn} onPress={() => setBuildOpen(false)}>
               <Text style={styles.clearBtnText}>Cancel</Text>
@@ -315,86 +309,71 @@ export default function PlannerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF8F3' },
-  weekNav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#E8E0D8',
-  },
-  navBtn: { padding: 8 },
-  weekLabel: { fontSize: 16, fontWeight: '700', color: '#1A1A2E', flex: 1, textAlign: 'center' },
-  buildBtn: { padding: 8 },
-  varietyRow: { borderBottomWidth: 1, borderBottomColor: '#F0E8E0', maxHeight: 44 },
-  varietyContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: 'row' },
-  varietyChip: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F5F5F5', borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  varietyChipWarn: { backgroundColor: '#FFF0F0', borderWidth: 1, borderColor: '#FFCCCC' },
-  varietyText: { fontSize: 12, color: '#888', fontWeight: '600' },
-  varietyTextWarn: { color: '#CC0000' },
-  grid: { padding: 16, gap: 12 },
-  dayCard: {
-    backgroundColor: '#fff', borderRadius: 16,
-    borderWidth: 1, borderColor: '#E8E0D8', overflow: 'hidden',
-  },
-  dayCardToday: { borderColor: '#CC0000', borderWidth: 2 },
-  dayHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F0E8E0',
-  },
-  dayName: { fontSize: 15, fontWeight: '800', color: '#1A1A2E', width: 36 },
-  dayNameToday: { color: '#CC0000' },
-  dayDate: { fontSize: 14, color: '#999' },
-  dayDateToday: { color: '#CC0000' },
-  assignedRecipe: { padding: 16 },
-  assignedTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
-  assignedHint: { fontSize: 11, color: '#ccc', marginTop: 4 },
-  emptySlot: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16 },
-  emptySlotText: { fontSize: 15, color: '#ccc' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emptyText: { fontSize: 16, color: '#888', textAlign: 'center' },
-  modal: { flex: 1, backgroundColor: '#FFF8F3' },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: '#E8E0D8',
-  },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
-  recipeOption: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 10, borderWidth: 1, borderColor: '#E8E0D8',
-  },
-  recipeOptionText: { fontSize: 16, fontWeight: '600', color: '#1A1A2E' },
-  recipeOptionSub: { fontSize: 12, color: '#aaa', marginTop: 2 },
-  // Build a week
-  buildContent: { padding: 20, paddingBottom: 40 },
-  buildSubtitle: { fontSize: 13, color: '#aaa', marginBottom: 20 },
-  buildRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 12 },
-  buildDay: { fontSize: 14, fontWeight: '800', color: '#888', width: 36 },
-  buildRecipeCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: '#E8E0D8',
-  },
-  buildRecipeTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A2E' },
-  buildRecipeProtein: { fontSize: 12, color: '#CC0000', fontWeight: '600', marginTop: 3 },
-  regenerateBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, marginTop: 20, paddingVertical: 12,
-  },
-  regenerateText: { fontSize: 15, color: '#CC0000', fontWeight: '600' },
-  buildFooter: {
-    flexDirection: 'row', gap: 12, padding: 20,
-    borderTopWidth: 1, borderTopColor: '#E8E0D8',
-  },
-  clearBtn: {
-    flex: 1, borderRadius: 12, paddingVertical: 14,
-    alignItems: 'center', borderWidth: 1, borderColor: '#E8E0D8',
-  },
-  clearBtnText: { fontSize: 16, color: '#888', fontWeight: '600' },
-  applyBtn: { flex: 2, backgroundColor: '#CC0000', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  applyBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
-});
+function makeStyles(C: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    weekNav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 16, paddingVertical: 12,
+      borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    navBtn: { padding: 8 },
+    weekLabel: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1, textAlign: 'center' },
+    buildBtn: { padding: 8 },
+    varietyRow: { borderBottomWidth: 1, borderBottomColor: C.borderLight, maxHeight: 44 },
+    varietyContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: 'row' },
+    varietyChip: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: C.varietyChip, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    varietyChipWarn: { backgroundColor: C.warnChip, borderWidth: 1, borderColor: C.warnBorder },
+    varietyText: { fontSize: 12, color: C.textMuted, fontWeight: '600' },
+    varietyTextWarn: { color: C.red },
+    grid: { padding: 16, gap: 12 },
+    dayCard: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+    dayCardToday: { borderColor: C.red, borderWidth: 2 },
+    dayHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingHorizontal: 16, paddingVertical: 12,
+      borderBottomWidth: 1, borderBottomColor: C.borderLight,
+    },
+    dayName: { fontSize: 15, fontWeight: '800', color: C.text, width: 36 },
+    dayNameToday: { color: C.red },
+    dayDate: { fontSize: 14, color: C.textMuted },
+    dayDateToday: { color: C.red },
+    assignedRecipe: { padding: 16 },
+    assignedTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+    assignedHint: { fontSize: 11, color: C.textMuted, marginTop: 4 },
+    emptySlot: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16 },
+    emptySlotText: { fontSize: 15, color: C.textMuted },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+    emptyText: { fontSize: 16, color: C.textMuted, textAlign: 'center' },
+    modal: { flex: 1, backgroundColor: C.bg },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    modalTitle: { fontSize: 22, fontWeight: '800', color: C.text },
+    recipeOption: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: C.card, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
+      marginBottom: 10, borderWidth: 1, borderColor: C.border,
+    },
+    recipeOptionText: { fontSize: 16, fontWeight: '600', color: C.text },
+    recipeOptionSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+    buildContent: { padding: 20, paddingBottom: 40 },
+    buildSubtitle: { fontSize: 13, color: C.textMuted, marginBottom: 20 },
+    buildRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 12 },
+    buildDay: { fontSize: 14, fontWeight: '800', color: C.textMuted, width: 36 },
+    buildRecipeCard: { flex: 1, backgroundColor: C.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+    buildRecipeTitle: { fontSize: 15, fontWeight: '700', color: C.text },
+    buildRecipeProtein: { fontSize: 12, color: C.red, fontWeight: '600', marginTop: 3 },
+    regenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 20, paddingVertical: 12 },
+    regenerateText: { fontSize: 15, color: C.red, fontWeight: '600' },
+    buildFooter: { flexDirection: 'row', gap: 12, padding: 20, borderTopWidth: 1, borderTopColor: C.border },
+    clearBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+    clearBtnText: { fontSize: 16, color: C.textMuted, fontWeight: '600' },
+    applyBtn: { flex: 2, backgroundColor: C.red, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    applyBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
+  });
+}
