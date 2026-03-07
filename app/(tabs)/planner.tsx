@@ -109,17 +109,17 @@ export default function PlannerScreen() {
     <View style={styles.container}>
       <View style={styles.weekNav}>
         <TouchableOpacity onPress={() => setWeekOffset((o) => o - 1)} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={22} color="#FF6B35" />
+          <Ionicons name="chevron-back" size={22} color="#CC0000" />
         </TouchableOpacity>
         <Text style={styles.weekLabel}>{weekLabel}</Text>
         <TouchableOpacity onPress={() => setWeekOffset((o) => o + 1)} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={22} color="#FF6B35" />
+          <Ionicons name="chevron-forward" size={22} color="#CC0000" />
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#FF6B35" />
+          <ActivityIndicator size="large" color="#CC0000" />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     borderColor: '#E8E0D8',
     overflow: 'hidden',
   },
-  dayCardToday: { borderColor: '#FF6B35', borderWidth: 2 },
+  dayCardToday: { borderColor: '#CC0000', borderWidth: 2 },
   fridayCard: { opacity: 0.5 },
   dayHeader: {
     flexDirection: 'row',
@@ -247,9 +247,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0E8E0',
   },
   dayName: { fontSize: 15, fontWeight: '800', color: '#1A1A2E', width: 36 },
-  dayNameToday: { color: '#FF6B35' },
+  dayNameToday: { color: '#CC0000' },
   dayDate: { fontSize: 14, color: '#999' },
-  dayDateToday: { color: '#FF6B35' },
+  dayDateToday: { color: '#CC0000' },
   assignedRecipe: {
     padding: 16,
   },

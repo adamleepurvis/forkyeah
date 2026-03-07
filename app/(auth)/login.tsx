@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 40,
     fontWeight: '800',
-    color: '#FF6B35',
+    color: '#CC0000',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
   },
   button: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#CC0000',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

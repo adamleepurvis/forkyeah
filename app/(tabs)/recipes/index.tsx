@@ -38,7 +38,7 @@ export default function RecipesScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color="#CC0000" />
       </View>
     );
   }
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 32, fontWeight: '800', color: '#1A1A2E' },
   addButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#CC0000',
     width: 44,
     height: 44,
     borderRadius: 22,

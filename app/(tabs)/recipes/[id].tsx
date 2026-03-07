@@ -51,7 +51,7 @@ export default function RecipeDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color="#CC0000" />
       </View>
     );
   }
@@ -67,7 +67,7 @@ export default function RecipeDetailScreen() {
             onPress={() => router.push({ pathname: '/(tabs)/recipes/new', params: { id } })}
             style={styles.actionBtn}
           >
-            <Ionicons name="pencil-outline" size={20} color="#FF6B35" />
+            <Ionicons name="pencil-outline" size={20} color="#CC0000" />
           </TouchableOpacity>
           <TouchableOpacity onPress={deleteRecipe} style={styles.actionBtn}>
             <Ionicons name="trash-outline" size={20} color="#E53935" />
@@ -80,7 +80,7 @@ export default function RecipeDetailScreen() {
           style={styles.linkButton}
           onPress={() => Linking.openURL(recipe.url!)}
         >
-          <Ionicons name="open-outline" size={18} color="#FF6B35" />
+          <Ionicons name="open-outline" size={18} color="#CC0000" />
           <Text style={styles.linkText}>Open Recipe</Text>
         </TouchableOpacity>
       ) : null}
@@ -118,18 +118,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFF0E8',
+    backgroundColor: '#FFF0F0',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#FFD4BC',
+    borderColor: '#FFCCCC',
     marginBottom: 24,
   },
-  linkText: { fontSize: 16, fontWeight: '600', color: '#FF6B35' },
+  linkText: { fontSize: 16, fontWeight: '600', color: '#CC0000' },
   sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FF6B35',
+    color: '#CC0000',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 12,

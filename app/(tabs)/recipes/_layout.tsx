@@ -7,7 +7,7 @@ export default function RecipesLayout() {
         headerStyle: { backgroundColor: '#FFF8F3' },
         headerTitleStyle: { fontWeight: '700', fontSize: 20, color: '#1A1A2E' },
         headerShadowVisible: false,
-        headerTintColor: '#FF6B35',
+        headerTintColor: '#CC0000',
       }}
     />
   );

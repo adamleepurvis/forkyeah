@@ -70,7 +70,7 @@ export default function NewRecipeScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color="#CC0000" />
       </View>
     );
   }
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FF6B35',
+    color: '#CC0000',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 8,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   notesInput: { minHeight: 100, textAlignVertical: 'top' },
   saveButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#CC0000',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',

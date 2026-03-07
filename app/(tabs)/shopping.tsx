@@ -100,7 +100,7 @@ export default function ShoppingScreen() {
       <View style={styles.container}>
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#FF6B35" />
+            <ActivityIndicator size="large" color="#CC0000" />
           </View>
         ) : (
           <FlatList
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxChecked: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
+  checkboxChecked: { backgroundColor: '#CC0000', borderColor: '#CC0000' },
   itemName: { fontSize: 16, color: '#1A1A2E', fontWeight: '500', flex: 1 },
   itemNameChecked: { textDecorationLine: 'line-through' },
   divider: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   dividerText: { fontSize: 12, color: '#aaa', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  clearText: { fontSize: 13, color: '#FF6B35', fontWeight: '600' },
+  clearText: { fontSize: 13, color: '#CC0000', fontWeight: '600' },
   clearAllBtn: { marginTop: 24, alignItems: 'center', paddingVertical: 8 },
   clearAllText: { fontSize: 14, color: '#ccc' },
   emptyText: { fontSize: 20, fontWeight: '600', color: '#888', marginTop: 16 },
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
   },
   addBtn: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#CC0000',
     width: 48,
     height: 48,
     borderRadius: 24,
