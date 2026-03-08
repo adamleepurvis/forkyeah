@@ -40,6 +40,29 @@ export default function NewRecipeScreen() {
   const [loading, setLoading] = useState(isEditing);
   const hasScraped = useRef(false);
 
+  async function fetchFromLink() {
+    if (!url.trim()) return;
+    setScraping(true);
+    const scraped = await scrapeRecipe(url.trim());
+    setScraping(false);
+    hasScraped.current = true;
+
+    let didFill = false;
+    if (scraped.title && !title.trim()) { setTitle(scraped.title); didFill = true; }
+    if (scraped.ingredients?.length && ingredients.every((i) => !i.trim())) {
+      setIngredients(scraped.ingredients);
+      didFill = true;
+    }
+    if (scraped.protein && !protein) { setProtein(scraped.protein); didFill = true; }
+    if (scraped.timing && !timing) { setTiming(scraped.timing); didFill = true; }
+
+    if (didFill) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Alert.alert('Nothing found', 'Could not extract recipe details from this link. Try filling in the fields manually.');
+    }
+  }
+
   useEffect(() => {
     if (!isEditing) return;
     supabase.from('recipes').select('*').eq('id', id).single().then(({ data }) => {
@@ -139,6 +162,15 @@ export default function NewRecipeScreen() {
           keyboardType="url"
         />
 
+        {url.trim() ? (
+          <TouchableOpacity style={styles.fetchBtn} onPress={fetchFromLink} disabled={scraping}>
+            {scraping
+              ? <ActivityIndicator size="small" color={C.red} />
+              : <><Ionicons name="sparkles-outline" size={15} color={C.red} /><Text style={styles.fetchBtnText}>Fetch details from link</Text></>
+            }
+          </TouchableOpacity>
+        ) : null}
+
         <Text style={styles.fieldLabel}>Protein</Text>
         <View style={styles.chipWrap}>
           {PROTEINS.map(({ value, label }) => (
@@ -233,6 +265,12 @@ function makeStyles(C: Colors) {
     removeBtn: { padding: 2 },
     addRowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, marginBottom: 4 },
     addRowText: { fontSize: 15, color: C.red, fontWeight: '600' },
+    fetchBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 6, marginTop: 8, paddingVertical: 10, borderRadius: 10,
+      borderWidth: 1, borderColor: C.red, backgroundColor: C.redLight,
+    },
+    fetchBtnText: { fontSize: 14, color: C.red, fontWeight: '600' },
     chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: {
       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,

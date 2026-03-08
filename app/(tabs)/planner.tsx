@@ -160,6 +160,16 @@ export default function PlannerScreen() {
     fetchData();
   }
 
+  async function addIngredientsToShopping(plan: MealPlan) {
+    const ingredients = plan.recipe?.ingredients;
+    if (!ingredients?.length) {
+      Alert.alert('No ingredients', 'This recipe has no ingredients saved. Edit it to add some.');
+      return;
+    }
+    await supabase.from('shopping_items').insert(ingredients.map((name) => ({ name })));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   function editSpecial(dateStr: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const current = getSpecialForDate(dateStr);
@@ -285,8 +295,14 @@ export default function PlannerScreen() {
                     <View key={plan.id} style={styles.assignedRecipe}>
                       <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
                       <TouchableOpacity
+                        onPress={() => addIngredientsToShopping(plan)}
+                        style={styles.recipeActionBtn}
+                      >
+                        <Ionicons name="cart-outline" size={16} color={C.textMuted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
                         onPress={() => removeRecipeFromDay(plan.id)}
-                        style={styles.removeRecipeBtn}
+                        style={styles.recipeActionBtn}
                       >
                         <Ionicons name="close-circle" size={18} color={C.border} />
                       </TouchableOpacity>
@@ -467,7 +483,7 @@ function makeStyles(C: Colors) {
       borderWidth: 1, borderColor: C.borderLight,
     },
     assignedTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text },
-    removeRecipeBtn: { padding: 2, marginLeft: 8 },
+    recipeActionBtn: { padding: 2, marginLeft: 6 },
     addSlot: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
     addSlotText: { fontSize: 14, color: C.textMuted },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
