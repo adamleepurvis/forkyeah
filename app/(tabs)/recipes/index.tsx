@@ -20,6 +20,8 @@ const TIMINGS: { value: Timing; label: string }[] = [
   { value: 'weekend', label: 'Weekend' },
 ];
 
+type SortOption = 'az' | 'newest' | 'oldest';
+
 type Filters = {
   sources: string[];
   proteins: Protein[];
@@ -43,6 +45,14 @@ function applyFilters(recipes: Recipe[], filters: Filters, search: string, recen
   });
 }
 
+function applySort(recipes: Recipe[], sort: SortOption): Recipe[] {
+  const copy = [...recipes];
+  if (sort === 'az') return copy.sort((a, b) => a.title.localeCompare(b.title));
+  if (sort === 'newest') return copy.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (sort === 'oldest') return copy.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return copy;
+}
+
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
 }
@@ -56,6 +66,7 @@ export default function RecipesScreen() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [filters, setFilters] = useState<Filters>({ sources: [], proteins: [], timings: [], notMadeRecently: false });
+  const [sort, setSort] = useState<SortOption>('az');
   const router = useRouter();
   const C = useColors();
   const styles = makeStyles(C);
@@ -85,7 +96,7 @@ export default function RecipesScreen() {
   async function signOut() { await supabase.auth.signOut(); }
 
   const allSources = [...new Set(recipes.map((r) => getSource(r.url)))].sort();
-  const filtered = applyFilters(recipes, filters, search, recentIds);
+  const filtered = applySort(applyFilters(recipes, filters, search, recentIds), sort);
   const activeFilters = filterCount(filters);
 
   const tryNew = shuffle(recipes.filter((r) => !recentIds.has(r.id))).slice(0, 8);
@@ -177,6 +188,18 @@ export default function RecipesScreen() {
         >
           <Ionicons name="shuffle-outline" size={20} color={filtered.length > 0 ? C.red : C.border} />
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.sortRow}>
+        {([['az', 'A–Z'], ['newest', 'Newest'], ['oldest', 'Oldest']] as [SortOption, string][]).map(([value, label]) => (
+          <TouchableOpacity
+            key={value}
+            style={[styles.sortChip, sort === value && styles.sortChipActive]}
+            onPress={() => setSort(value)}
+          >
+            <Text style={[styles.sortChipText, sort === value && styles.sortChipTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {(activeFilters > 0 || search) && (
@@ -341,6 +364,17 @@ function makeStyles(C: Colors) {
     searchInput: { flex: 1, paddingVertical: 11, fontSize: 15, color: C.text },
     shuffleBtn: { padding: 6 },
     shuffleBtnDisabled: { opacity: 0.4 },
+    sortRow: {
+      flexDirection: 'row', gap: 8,
+      paddingHorizontal: 20, marginBottom: 10,
+    },
+    sortChip: {
+      paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+      borderWidth: 1, borderColor: C.border, backgroundColor: C.chipBg,
+    },
+    sortChipActive: { backgroundColor: C.red, borderColor: C.red },
+    sortChipText: { fontSize: 13, color: C.textSec, fontWeight: '600' },
+    sortChipTextActive: { color: '#fff' },
     activeFilterRow: {
       flexDirection: 'row', justifyContent: 'space-between',
       paddingHorizontal: 20, paddingBottom: 8,
