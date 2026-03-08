@@ -77,7 +77,7 @@ const PROTEIN_LABEL: Record<string, string> = {
 };
 
 export default function PlannerScreen() {
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekOffset, setWeekOffset] = useState(() => new Date().getDay() === 6 ? 1 : 0);
   const [weekDates, setWeekDates] = useState<Date[]>(getWeekDates(0));
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [daySpecials, setDaySpecials] = useState<Record<string, string>>({});

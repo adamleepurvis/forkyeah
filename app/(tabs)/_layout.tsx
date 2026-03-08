@@ -6,6 +6,7 @@ export default function TabsLayout() {
   const C = useColors();
   return (
     <Tabs
+      initialRouteName="planner"
       screenOptions={{
         headerStyle: { backgroundColor: C.bg },
         headerTitleStyle: { fontWeight: '700', fontSize: 20, color: C.text },
