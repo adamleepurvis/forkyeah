@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, FlatList, Alert, ActivityIndicator,
+  Modal, FlatList, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -84,6 +84,7 @@ export default function PlannerScreen() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState<string | null>(null);
+  const [pickerSearch, setPickerSearch] = useState('');
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildPicks, setBuildPicks] = useState<{ date: Date; recipe: Recipe }[]>([]);
   const C = useColors();
@@ -133,6 +134,11 @@ export default function PlannerScreen() {
   function getSpecialForDate(dateStr: string): string {
     if (dateStr in daySpecials) return daySpecials[dateStr];
     return DOW_DEFAULTS[getDOW(dateStr)] ?? '';
+  }
+
+  function closePicker() {
+    setPicking(null);
+    setPickerSearch('');
   }
 
   async function addRecipeToDay(recipe: Recipe) {
@@ -304,9 +310,21 @@ export default function PlannerScreen() {
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Pick a Recipe</Text>
-            <TouchableOpacity onPress={() => setPicking(null)}>
+            <TouchableOpacity onPress={closePicker}>
               <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
+          </View>
+          <View style={styles.pickerSearchWrap}>
+            <Ionicons name="search" size={16} color={C.textMuted} style={styles.pickerSearchIcon} />
+            <TextInput
+              style={styles.pickerSearchInput}
+              placeholder="Search recipes..."
+              placeholderTextColor={C.placeholder}
+              value={pickerSearch}
+              onChangeText={setPickerSearch}
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
           </View>
           {recipes.length === 0 ? (
             <View style={styles.center}>
@@ -314,9 +332,17 @@ export default function PlannerScreen() {
             </View>
           ) : (
             <FlatList
-              data={recipes}
+              data={recipes.filter((r) =>
+                r.title.toLowerCase().includes(pickerSearch.toLowerCase())
+              )}
               keyExtractor={(r) => r.id}
               contentContainerStyle={{ padding: 16 }}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <View style={styles.center}>
+                  <Text style={styles.emptyText}>No recipes match "{pickerSearch}"</Text>
+                </View>
+              }
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.recipeOption} onPress={() => addRecipeToDay(item)}>
                   <View style={{ flex: 1 }}>
@@ -442,6 +468,14 @@ function makeStyles(C: Colors) {
       padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: C.border,
     },
     modalTitle: { fontSize: 22, fontWeight: '800', color: C.text },
+    pickerSearchWrap: {
+      flexDirection: 'row', alignItems: 'center',
+      margin: 16, marginBottom: 0,
+      backgroundColor: C.inputBg, borderRadius: 10,
+      borderWidth: 1, borderColor: C.border, paddingHorizontal: 10,
+    },
+    pickerSearchIcon: { marginRight: 6 },
+    pickerSearchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: C.text },
     recipeOption: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       backgroundColor: C.card, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
