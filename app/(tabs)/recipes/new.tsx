@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '../../../lib/supabase';
 import { useColors, type Colors } from '../../../lib/colors';
 import type { Protein, Timing } from '../../../lib/types';
+import { scrapeRecipe } from '../../../lib/scrapeRecipe';
 
 const PROTEINS: { value: Protein; label: string }[] = [
   { value: 'chicken', label: 'Chicken' },
@@ -35,7 +36,9 @@ export default function NewRecipeScreen() {
   const [timing, setTiming] = useState<Timing | null>(null);
   const [ingredients, setIngredients] = useState<string[]>(['']);
   const [saving, setSaving] = useState(false);
+  const [scraping, setScraping] = useState(false);
   const [loading, setLoading] = useState(isEditing);
+  const hasScraped = useRef(false);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -53,10 +56,34 @@ export default function NewRecipeScreen() {
   }, [id]);
 
   async function save() {
+    // For new recipes with a URL: scrape first, populate empty fields, let user review
+    if (!isEditing && url.trim() && !hasScraped.current) {
+      setScraping(true);
+      const scraped = await scrapeRecipe(url.trim());
+      setScraping(false);
+      hasScraped.current = true;
+
+      let didFill = false;
+      if (scraped.title && !title.trim()) { setTitle(scraped.title); didFill = true; }
+      if (scraped.ingredients?.length && ingredients.every((i) => !i.trim())) {
+        setIngredients(scraped.ingredients);
+        didFill = true;
+      }
+      if (scraped.protein && !protein) { setProtein(scraped.protein); didFill = true; }
+      if (scraped.timing && !timing) { setTiming(scraped.timing); didFill = true; }
+
+      if (didFill) {
+        Alert.alert('Recipe info found', 'We auto-filled details from the link. Review and tap Save to confirm.');
+        return;
+      }
+      // Nothing found — fall through to save normally
+    }
+
     if (!title.trim()) {
       Alert.alert('Missing title', 'Please add a recipe name.');
       return;
     }
+
     setSaving(true);
     const payload = {
       title: title.trim(),
@@ -177,9 +204,9 @@ export default function NewRecipeScreen() {
           multiline
         />
 
-        <TouchableOpacity style={styles.saveButton} onPress={save} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : (
-            <Text style={styles.saveButtonText}>{isEditing ? 'Save Changes' : 'Add Recipe'}</Text>
+        <TouchableOpacity style={styles.saveButton} onPress={save} disabled={saving || scraping}>
+          {saving || scraping ? <ActivityIndicator color="#fff" /> : (
+            <Text style={styles.saveButtonText}>{isEditing ? 'Save Changes' : hasScraped.current ? 'Save Recipe' : 'Add Recipe'}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

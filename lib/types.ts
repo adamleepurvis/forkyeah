@@ -20,6 +20,12 @@ export type MealPlan = {
   meal_slot: 'dinner';
   recipe_id: string | null;
   recipe?: Recipe;
+  position: number;
+};
+
+export type DaySpecial = {
+  date: string; // YYYY-MM-DD
+  label: string;
 };
 
 export type ShoppingItem = {

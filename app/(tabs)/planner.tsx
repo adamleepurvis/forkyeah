@@ -10,22 +10,30 @@ import { supabase } from '../../lib/supabase';
 import type { Recipe, MealPlan } from '../../lib/types';
 import { useColors, type Colors } from '../../lib/colors';
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Week starts Sunday
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Day-of-week defaults: 0 = Sunday, 5 = Friday
+const DOW_DEFAULTS: Record<number, string> = { 0: 'Somos', 5: 'Order Out' };
 
 function getWeekDates(offset = 0): Date[] {
   const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7) + offset * 7);
+  const sunday = new Date(now);
+  sunday.setDate(now.getDate() - now.getDay() + offset * 7);
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
     return d;
   });
 }
 
 function toDateStr(d: Date): string {
   return d.toISOString().split('T')[0];
+}
+
+// Use noon to avoid DST day-shift issues
+function getDOW(dateStr: string): number {
+  return new Date(dateStr + 'T12:00:00').getDay();
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -69,6 +77,7 @@ export default function PlannerScreen() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekDates, setWeekDates] = useState<Date[]>(getWeekDates(0));
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
+  const [daySpecials, setDaySpecials] = useState<Record<string, string>>({});
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState<string | null>(null);
@@ -83,9 +92,15 @@ export default function PlannerScreen() {
     const start = toDateStr(dates[0]);
     const end = toDateStr(dates[6]);
 
-    const [plansRes, recipesRes] = await Promise.all([
-      supabase.from('meal_plans').select('*, recipe:recipes(*)').gte('date', start).lte('date', end).eq('meal_slot', 'dinner'),
+    const [plansRes, recipesRes, specialsRes] = await Promise.all([
+      supabase
+        .from('meal_plans')
+        .select('*, recipe:recipes(*)')
+        .gte('date', start)
+        .lte('date', end)
+        .order('position'),
       supabase.from('recipes').select('*').order('title'),
+      supabase.from('day_specials').select('*').gte('date', start).lte('date', end),
     ]);
 
     if (plansRes.error) Alert.alert('Error', plansRes.error.message);
@@ -93,6 +108,12 @@ export default function PlannerScreen() {
 
     if (recipesRes.error) Alert.alert('Error', recipesRes.error.message);
     else setRecipes(recipesRes.data ?? []);
+
+    if (!specialsRes.error) {
+      const map: Record<string, string> = {};
+      for (const s of specialsRes.data ?? []) map[s.date] = s.label;
+      setDaySpecials(map);
+    }
 
     setLoading(false);
   }, [weekOffset]);
@@ -102,33 +123,56 @@ export default function PlannerScreen() {
     fetchData();
   }, [fetchData]));
 
-  function getMealPlan(date: string): MealPlan | undefined {
-    return mealPlans.find((m) => m.date === date);
+  function getMealPlansForDate(dateStr: string): MealPlan[] {
+    return mealPlans.filter((m) => m.date === dateStr).sort((a, b) => a.position - b.position);
   }
 
-  async function assignRecipe(recipe: Recipe) {
+  function getSpecialForDate(dateStr: string): string {
+    if (dateStr in daySpecials) return daySpecials[dateStr];
+    return DOW_DEFAULTS[getDOW(dateStr)] ?? '';
+  }
+
+  async function addRecipeToDay(recipe: Recipe) {
     if (!picking) return;
-    const existing = getMealPlan(picking);
-    if (existing) {
-      await supabase.from('meal_plans').update({ recipe_id: recipe.id }).eq('id', existing.id);
-    } else {
-      await supabase.from('meal_plans').insert({ date: picking, meal_slot: 'dinner', recipe_id: recipe.id });
-    }
+    const existing = getMealPlansForDate(picking);
+    const position = existing.length;
+    await supabase
+      .from('meal_plans')
+      .insert({ date: picking, meal_slot: 'dinner', recipe_id: recipe.id, position });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPicking(null);
     fetchData();
   }
 
-  async function clearSlot(date: string) {
-    const existing = getMealPlan(date);
-    if (!existing) return;
-    await supabase.from('meal_plans').delete().eq('id', existing.id);
+  async function removeRecipeFromDay(id: string) {
+    await supabase.from('meal_plans').delete().eq('id', id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     fetchData();
+  }
+
+  function editSpecial(dateStr: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const current = getSpecialForDate(dateStr);
+    Alert.prompt(
+      'Day Special',
+      'e.g. "Order Out", "Somos" — leave empty to clear',
+      async (text) => {
+        if (text === null) return;
+        const label = text.trim();
+        await supabase
+          .from('day_specials')
+          .upsert({ date: dateStr, label }, { onConflict: 'date' });
+        setDaySpecials((prev) => ({ ...prev, [dateStr]: label }));
+      },
+      'plain-text',
+      current,
+    );
   }
 
   function openBuildWeek() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const monThu = weekDates.slice(0, 4);
+    // Mon–Thu = indices 1–4 in Sun-based week; skip days with specials set
+    const monThu = weekDates.slice(1, 5).filter((d) => !getSpecialForDate(toDateStr(d)));
     const picks = buildWeekPicks(recipes);
     setBuildPicks(monThu.map((date, i) => ({ date, recipe: picks[i] })).filter((p) => p.recipe));
     setBuildOpen(true);
@@ -136,7 +180,7 @@ export default function PlannerScreen() {
 
   function regenerate() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const monThu = weekDates.slice(0, 4);
+    const monThu = weekDates.slice(1, 5).filter((d) => !getSpecialForDate(toDateStr(d)));
     const picks = buildWeekPicks(recipes);
     setBuildPicks(monThu.map((date, i) => ({ date, recipe: picks[i] })).filter((p) => p.recipe));
   }
@@ -145,17 +189,16 @@ export default function PlannerScreen() {
     setBuildOpen(false);
     for (const { date, recipe } of buildPicks) {
       const dateStr = toDateStr(date);
-      const existing = getMealPlan(dateStr);
-      if (existing) {
-        await supabase.from('meal_plans').update({ recipe_id: recipe.id }).eq('id', existing.id);
-      } else {
-        await supabase.from('meal_plans').insert({ date: dateStr, meal_slot: 'dinner', recipe_id: recipe.id });
-      }
+      await supabase.from('meal_plans').delete().eq('date', dateStr);
+      await supabase
+        .from('meal_plans')
+        .insert({ date: dateStr, meal_slot: 'dinner', recipe_id: recipe.id, position: 0 });
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     fetchData();
   }
 
+  // Count proteins across all recipes for all days
   const proteinCounts: Record<string, number> = {};
   for (const plan of mealPlans) {
     const p = plan.recipe?.protein;
@@ -205,7 +248,8 @@ export default function PlannerScreen() {
           {weekDates.map((date, i) => {
             const dateStr = toDateStr(date);
             const isToday = toDateStr(new Date()) === dateStr;
-            const plan = getMealPlan(dateStr);
+            const plans = getMealPlansForDate(dateStr);
+            const special = getSpecialForDate(dateStr);
 
             return (
               <View key={dateStr} style={[styles.dayCard, isToday && styles.dayCardToday]}>
@@ -214,24 +258,38 @@ export default function PlannerScreen() {
                   <Text style={[styles.dayDate, isToday && styles.dayDateToday]}>
                     {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
+                  <TouchableOpacity onPress={() => editSpecial(dateStr)} style={styles.specialEditBtn}>
+                    {special ? (
+                      <View style={styles.specialBadge}>
+                        <Text style={styles.specialBadgeText}>{special}</Text>
+                        <Ionicons name="pencil" size={10} color={C.red} style={{ marginLeft: 4 }} />
+                      </View>
+                    ) : (
+                      <Ionicons name="flag-outline" size={16} color={C.border} />
+                    )}
+                  </TouchableOpacity>
                 </View>
 
-                {plan?.recipe ? (
+                <View style={styles.dayBody}>
+                  {plans.map((plan) => (
+                    <View key={plan.id} style={styles.assignedRecipe}>
+                      <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeRecipeFromDay(plan.id)}
+                        style={styles.removeRecipeBtn}
+                      >
+                        <Ionicons name="close-circle" size={18} color={C.border} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                   <TouchableOpacity
-                    style={styles.assignedRecipe}
+                    style={styles.addSlot}
                     onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking(dateStr); }}
-                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); clearSlot(dateStr); }}
-                    activeOpacity={0.7}
                   >
-                    <Text style={styles.assignedTitle}>{plan.recipe.title}</Text>
-                    <Text style={styles.assignedHint}>Tap to change · Hold to clear</Text>
+                    <Ionicons name="add-circle-outline" size={18} color={C.border} />
+                    <Text style={styles.addSlotText}>{plans.length === 0 ? 'Add dinner' : 'Add another'}</Text>
                   </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity style={styles.emptySlot} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking(dateStr); }}>
-                    <Ionicons name="add-circle-outline" size={22} color={C.border} />
-                    <Text style={styles.emptySlotText}>Add dinner</Text>
-                  </TouchableOpacity>
-                )}
+                </View>
               </View>
             );
           })}
@@ -257,7 +315,7 @@ export default function PlannerScreen() {
               keyExtractor={(r) => r.id}
               contentContainerStyle={{ padding: 16 }}
               renderItem={({ item }) => (
-                <TouchableOpacity style={styles.recipeOption} onPress={() => assignRecipe(item)}>
+                <TouchableOpacity style={styles.recipeOption} onPress={() => addRecipeToDay(item)}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.recipeOptionText}>{item.title}</Text>
                     {item.protein && <Text style={styles.recipeOptionSub}>{PROTEIN_LABEL[item.protein]}</Text>}
@@ -280,16 +338,25 @@ export default function PlannerScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.buildContent}>
-            <Text style={styles.buildSubtitle}>1 fish · 1 chicken · 2 wildcards, shuffled across Mon–Thu</Text>
-            {buildPicks.map(({ date, recipe }, i) => (
-              <View key={i} style={styles.buildRow}>
-                <Text style={styles.buildDay}>{DAY_NAMES[weekDates.indexOf(date)]}</Text>
-                <View style={styles.buildRecipeCard}>
-                  <Text style={styles.buildRecipeTitle}>{recipe.title}</Text>
-                  {recipe.protein && <Text style={styles.buildRecipeProtein}>{PROTEIN_LABEL[recipe.protein]}</Text>}
-                </View>
-              </View>
-            ))}
+            <Text style={styles.buildSubtitle}>
+              1 fish · 1 chicken · 2 wildcards across Mon–Thu, skipping days with specials
+            </Text>
+            {buildPicks.length === 0 ? (
+              <Text style={styles.emptyText}>All Mon–Thu days have specials — nothing to fill.</Text>
+            ) : (
+              buildPicks.map(({ date, recipe }, i) => {
+                const dayIndex = weekDates.findIndex((d) => toDateStr(d) === toDateStr(date));
+                return (
+                  <View key={i} style={styles.buildRow}>
+                    <Text style={styles.buildDay}>{DAY_NAMES[dayIndex]}</Text>
+                    <View style={styles.buildRecipeCard}>
+                      <Text style={styles.buildRecipeTitle}>{recipe.title}</Text>
+                      {recipe.protein && <Text style={styles.buildRecipeProtein}>{PROTEIN_LABEL[recipe.protein]}</Text>}
+                    </View>
+                  </View>
+                );
+              })
+            )}
             <TouchableOpacity style={styles.regenerateBtn} onPress={regenerate}>
               <Ionicons name="refresh-outline" size={18} color={C.red} />
               <Text style={styles.regenerateText}>Shuffle again</Text>
@@ -299,7 +366,11 @@ export default function PlannerScreen() {
             <TouchableOpacity style={styles.clearBtn} onPress={() => setBuildOpen(false)}>
               <Text style={styles.clearBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyBtn} onPress={applyBuildWeek}>
+            <TouchableOpacity
+              style={[styles.applyBtn, buildPicks.length === 0 && { opacity: 0.4 }]}
+              onPress={applyBuildWeek}
+              disabled={buildPicks.length === 0}
+            >
               <Text style={styles.applyBtnText}>Apply Week</Text>
             </TouchableOpacity>
           </View>
@@ -341,11 +412,25 @@ function makeStyles(C: Colors) {
     dayNameToday: { color: C.red },
     dayDate: { fontSize: 14, color: C.textMuted },
     dayDateToday: { color: C.red },
-    assignedRecipe: { padding: 16 },
-    assignedTitle: { fontSize: 16, fontWeight: '700', color: C.text },
-    assignedHint: { fontSize: 11, color: C.textMuted, marginTop: 4 },
-    emptySlot: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16 },
-    emptySlotText: { fontSize: 15, color: C.textMuted },
+    specialEditBtn: { marginLeft: 'auto' },
+    specialBadge: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: C.warnChip, borderRadius: 12,
+      paddingHorizontal: 10, paddingVertical: 4,
+      borderWidth: 1, borderColor: C.warnBorder,
+    },
+    specialBadgeText: { fontSize: 12, color: C.red, fontWeight: '700' },
+    dayBody: { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
+    assignedRecipe: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: C.inputBg, borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 10,
+      borderWidth: 1, borderColor: C.borderLight,
+    },
+    assignedTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text },
+    removeRecipeBtn: { padding: 2, marginLeft: 8 },
+    addSlot: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
+    addSlotText: { fontSize: 14, color: C.textMuted },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
     emptyText: { fontSize: 16, color: C.textMuted, textAlign: 'center' },
     modal: { flex: 1, backgroundColor: C.bg },
