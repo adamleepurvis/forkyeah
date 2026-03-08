@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, FlatList, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../../lib/supabase';
@@ -89,6 +89,7 @@ export default function PlannerScreen() {
   const [buildPicks, setBuildPicks] = useState<{ date: Date; recipe: Recipe }[]>([]);
   const C = useColors();
   const styles = makeStyles(C);
+  const router = useRouter();
 
   const fetchData = useCallback(async () => {
     const dates = getWeekDates(weekOffset);
@@ -328,7 +329,7 @@ export default function PlannerScreen() {
           </View>
           {recipes.length === 0 ? (
             <View style={styles.center}>
-              <Text style={styles.emptyText}>No recipes yet. Add some in the Recipes tab!</Text>
+              <Text style={styles.emptyText}>No recipes yet.</Text>
             </View>
           ) : (
             <FlatList
@@ -354,6 +355,15 @@ export default function PlannerScreen() {
               )}
             />
           )}
+          <View style={styles.pickerFooter}>
+            <TouchableOpacity
+              style={styles.addNewRecipeBtn}
+              onPress={() => { closePicker(); router.push('/(tabs)/recipes/new'); }}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={C.red} />
+              <Text style={styles.addNewRecipeText}>Add a new recipe</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -468,6 +478,15 @@ function makeStyles(C: Colors) {
       padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: C.border,
     },
     modalTitle: { fontSize: 22, fontWeight: '800', color: C.text },
+    pickerFooter: {
+      borderTopWidth: 1, borderTopColor: C.border, padding: 16,
+    },
+    addNewRecipeBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, paddingVertical: 12, borderRadius: 12,
+      borderWidth: 1, borderColor: C.red,
+    },
+    addNewRecipeText: { fontSize: 15, color: C.red, fontWeight: '700' },
     pickerSearchWrap: {
       flexDirection: 'row', alignItems: 'center',
       margin: 16, marginBottom: 0,
