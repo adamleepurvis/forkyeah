@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, FlatList, Alert, ActivityIndicator, TextInput,
+  Modal, FlatList, Alert, ActivityIndicator, TextInput, Linking,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -293,7 +293,17 @@ export default function PlannerScreen() {
                 <View style={styles.dayBody}>
                   {plans.map((plan) => (
                     <View key={plan.id} style={styles.assignedRecipe}>
-                      <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
+                      <TouchableOpacity
+                        style={{ flex: 1 }}
+                        onPress={() => {
+                          const url = plan.recipe?.url;
+                          if (url) Linking.openURL(url);
+                        }}
+                        activeOpacity={plan.recipe?.url ? 0.6 : 1}
+                      >
+                        <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
+                        {plan.recipe?.url && <Text style={styles.assignedLink}>Open recipe ↗</Text>}
+                      </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => addIngredientsToShopping(plan)}
                         style={styles.recipeActionBtn}
@@ -482,7 +492,8 @@ function makeStyles(C: Colors) {
       paddingHorizontal: 12, paddingVertical: 10,
       borderWidth: 1, borderColor: C.borderLight,
     },
-    assignedTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text },
+    assignedTitle: { fontSize: 15, fontWeight: '600', color: C.text },
+    assignedLink: { fontSize: 11, color: C.red, marginTop: 2 },
     recipeActionBtn: { padding: 2, marginLeft: 6 },
     addSlot: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
     addSlotText: { fontSize: 14, color: C.textMuted },
