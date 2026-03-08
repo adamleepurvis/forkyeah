@@ -16,22 +16,22 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="recipes"
-        options={{
-          title: 'Recipes',
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="restaurant-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="planner"
         options={{
           title: 'Planner',
           headerTitle: 'Planner',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="recipes"
+        options={{
+          title: 'Recipes',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="restaurant-outline" size={size} color={color} />
           ),
         }}
       />
