@@ -29,7 +29,7 @@ export default function RootLayout() {
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login');
     } else if (session && inAuthGroup) {
-      router.replace('/(tabs)/recipes');
+      router.replace('/(tabs)/planner');
     }
   }, [session, loading, segments]);
 
