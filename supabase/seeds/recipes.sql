@@ -100,7 +100,7 @@ insert into recipes (title, url, notes) values
 ('Bibimbap', null, 'Beef, zucchini, carrots, spinach, mushrooms, bean sprouts, egg, kimchi, gochujang'),
 ('Dumplings + Edamame', null, 'Frozen dumplings or homemade, boiled edamame'),
 ('Fried Rice', null, 'Use leftover rice, whatever veg is around'),
-('Shallot Pasta', null, 'Caramelized shallots, pasta, parmesan — see NYT version too');
+('Shallot Pasta', 'https://cooking.nytimes.com/recipes/1020830-caramelized-shallot-pasta', 'Caramelized shallots, pasta, parmesan — see NYT version too');
 
 -- Add after the initial insert, run separately if recipes already seeded:
 -- insert into recipes (title, url, notes) values
