@@ -87,6 +87,7 @@ export default function PlannerScreen() {
   const [pickerSearch, setPickerSearch] = useState('');
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildPicks, setBuildPicks] = useState<{ date: Date; recipe: Recipe }[]>([]);
+  const [specialModal, setSpecialModal] = useState<{ dateStr: string; value: string } | null>(null);
   const C = useColors();
   const styles = makeStyles(C);
   const router = useRouter();
@@ -172,21 +173,16 @@ export default function PlannerScreen() {
 
   function editSpecial(dateStr: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const current = getSpecialForDate(dateStr);
-    Alert.prompt(
-      'Day Special',
-      'e.g. "Order Out", "Somos" — leave empty to clear',
-      async (text) => {
-        if (text === null) return;
-        const label = text.trim();
-        await supabase
-          .from('day_specials')
-          .upsert({ date: dateStr, label }, { onConflict: 'date' });
-        setDaySpecials((prev) => ({ ...prev, [dateStr]: label }));
-      },
-      'plain-text',
-      current,
-    );
+    setSpecialModal({ dateStr, value: getSpecialForDate(dateStr) });
+  }
+
+  async function saveSpecial() {
+    if (!specialModal) return;
+    const { dateStr, value } = specialModal;
+    const label = value.trim();
+    await supabase.from('day_specials').upsert({ date: dateStr, label }, { onConflict: 'date' });
+    setDaySpecials((prev) => ({ ...prev, [dateStr]: label }));
+    setSpecialModal(null);
   }
 
   function openBuildWeek() {
@@ -393,6 +389,33 @@ export default function PlannerScreen() {
         </View>
       </Modal>
 
+      {/* Special label modal */}
+      <Modal visible={!!specialModal} animationType="fade" transparent>
+        <View style={styles.specialOverlay}>
+          <View style={styles.specialSheet}>
+            <Text style={styles.specialSheetTitle}>Day Special</Text>
+            <Text style={styles.specialSheetSub}>e.g. "Order Out", "Somos" — leave empty to clear</Text>
+            <TextInput
+              style={styles.specialSheetInput}
+              value={specialModal?.value ?? ''}
+              onChangeText={(v) => setSpecialModal((prev) => prev ? { ...prev, value: v } : prev)}
+              placeholder="Special label..."
+              placeholderTextColor={C.placeholder}
+              autoFocus
+              onSubmitEditing={saveSpecial}
+            />
+            <View style={styles.specialSheetBtns}>
+              <TouchableOpacity style={styles.specialCancelBtn} onPress={() => setSpecialModal(null)}>
+                <Text style={styles.specialCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.specialSaveBtn} onPress={saveSpecial}>
+                <Text style={styles.specialSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Build a week modal */}
       <Modal visible={buildOpen} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
@@ -505,6 +528,29 @@ function makeStyles(C: Colors) {
       padding: 20, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: C.border,
     },
     modalTitle: { fontSize: 22, fontWeight: '800', color: C.text },
+    specialOverlay: {
+      flex: 1, backgroundColor: C.overlay,
+      justifyContent: 'center', alignItems: 'center', padding: 32,
+    },
+    specialSheet: {
+      backgroundColor: C.card, borderRadius: 16, padding: 24,
+      width: '100%', borderWidth: 1, borderColor: C.border,
+    },
+    specialSheetTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 4 },
+    specialSheetSub: { fontSize: 13, color: C.textMuted, marginBottom: 16 },
+    specialSheetInput: {
+      backgroundColor: C.inputBg, borderRadius: 10, paddingHorizontal: 14,
+      paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: C.border,
+      color: C.text, marginBottom: 16,
+    },
+    specialSheetBtns: { flexDirection: 'row', gap: 12 },
+    specialCancelBtn: {
+      flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center',
+      borderWidth: 1, borderColor: C.border,
+    },
+    specialCancelText: { fontSize: 15, color: C.textMuted, fontWeight: '600' },
+    specialSaveBtn: { flex: 1, backgroundColor: C.red, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    specialSaveText: { fontSize: 15, color: '#fff', fontWeight: '700' },
     pickerFooter: {
       borderTopWidth: 1, borderTopColor: C.border, padding: 16,
     },

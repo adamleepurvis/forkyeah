@@ -26,7 +26,14 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "ForkYeah",
+      "shortName": "ForkYeah",
+      "description": "Your weekly meal planner",
+      "themeColor": "#CC0000",
+      "backgroundColor": "#FFF8F3"
     },
     "plugins": [
       "expo-router",
