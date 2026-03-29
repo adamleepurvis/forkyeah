@@ -84,6 +84,14 @@ export default function ShoppingScreen() {
     ]);
   }
 
+  async function clearCategory(category: string | null) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const ids = items.filter((i) => !i.checked && i.category === category).map((i) => i.id);
+    if (ids.length === 0) return;
+    await supabase.from('shopping_items').delete().in('id', ids);
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+  }
+
   async function organizeList() {
     const unchecked = items.filter((i) => !i.checked);
     if (unchecked.length < 2) return;
@@ -126,6 +134,10 @@ export default function ShoppingScreen() {
   const checked = items.filter((i) => i.checked);
   const allDisplayed = [...unchecked, ...checked];
 
+  const hasCategorizedItems = unchecked.some((i) => i.category);
+  const getEffectiveCategory = (i: ShoppingItem) =>
+    i.category ?? (hasCategorizedItems ? 'Uncategorized' : null);
+
   const renderRightActions = (id: string) => (
     <TouchableOpacity
       style={styles.deleteAction}
@@ -148,21 +160,28 @@ export default function ShoppingScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={
-              unchecked.length >= 2 ? (
-                <TouchableOpacity
-                  style={[styles.organizeBtn, organizing && { opacity: 0.6 }]}
-                  onPress={organizeList}
-                  disabled={organizing}
-                >
-                  {organizing ? (
-                    <ActivityIndicator size="small" color={C.red} />
-                  ) : (
-                    <Ionicons name="sparkles-outline" size={15} color={C.red} />
+              items.length > 0 ? (
+                <View style={styles.headerActions}>
+                  {unchecked.length >= 2 && (
+                    <TouchableOpacity
+                      style={[styles.organizeBtn, organizing && { opacity: 0.6 }]}
+                      onPress={organizeList}
+                      disabled={organizing}
+                    >
+                      {organizing ? (
+                        <ActivityIndicator size="small" color={C.red} />
+                      ) : (
+                        <Ionicons name="sparkles-outline" size={15} color={C.red} />
+                      )}
+                      <Text style={styles.organizeBtnText}>
+                        {organizing ? 'Organizing...' : 'Organize list'}
+                      </Text>
+                    </TouchableOpacity>
                   )}
-                  <Text style={styles.organizeBtnText}>
-                    {organizing ? 'Organizing...' : 'Organize list'}
-                  </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity style={styles.clearAllHeaderBtn} onPress={clearAll}>
+                    <Text style={styles.clearAllHeaderText}>Clear all</Text>
+                  </TouchableOpacity>
+                </View>
               ) : null
             }
             ListEmptyComponent={
@@ -173,18 +192,22 @@ export default function ShoppingScreen() {
               </View>
             }
             renderItem={({ item, index }) => {
-              // Show category header when category changes (for organised items only)
               const prevItem = allDisplayed[index - 1];
+              const effectiveCategory = getEffectiveCategory(item);
+              const prevEffectiveCategory = prevItem && !prevItem.checked ? getEffectiveCategory(prevItem) : null;
               const showCategoryHeader =
-                item.category &&
                 !item.checked &&
-                item.category !== prevItem?.category;
+                effectiveCategory !== null &&
+                effectiveCategory !== prevEffectiveCategory;
 
               return (
                 <>
                   {showCategoryHeader && (
                     <View style={styles.categoryHeader}>
-                      <Text style={styles.categoryHeaderText}>{item.category}</Text>
+                      <Text style={styles.categoryHeaderText}>{effectiveCategory}</Text>
+                      <TouchableOpacity onPress={() => clearCategory(item.category)}>
+                        <Text style={styles.clearText}>Clear</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                   {item.id === checked[0]?.id && checked.length > 0 && (
@@ -210,13 +233,7 @@ export default function ShoppingScreen() {
                 </>
               );
             }}
-            ListFooterComponent={
-              items.length > 0 ? (
-                <TouchableOpacity style={styles.clearAllBtn} onPress={clearAll}>
-                  <Text style={styles.clearAllText}>Clear entire list</Text>
-                </TouchableOpacity>
-              ) : null
-            }
+            ListFooterComponent={<View style={{ height: 16 }} />}
           />
         )}
 
@@ -244,13 +261,21 @@ function makeStyles(C: Colors) {
     container: { flex: 1, backgroundColor: C.bg },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, paddingTop: 80 },
     list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
+    headerActions: {
+      gap: 8, marginBottom: 12,
+    },
     organizeBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 6, paddingVertical: 10, marginBottom: 12,
+      gap: 6, paddingVertical: 10,
       borderRadius: 10, borderWidth: 1, borderColor: C.red, backgroundColor: C.redLight,
     },
     organizeBtnText: { fontSize: 14, color: C.red, fontWeight: '600' },
+    clearAllHeaderBtn: {
+      alignItems: 'center', paddingVertical: 8,
+    },
+    clearAllHeaderText: { fontSize: 14, color: C.textMuted },
     categoryHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
       paddingTop: 16, paddingBottom: 6,
     },
     categoryHeaderText: {
@@ -276,8 +301,6 @@ function makeStyles(C: Colors) {
     },
     dividerText: { fontSize: 12, color: C.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     clearText: { fontSize: 13, color: C.red, fontWeight: '600' },
-    clearAllBtn: { marginTop: 24, alignItems: 'center', paddingVertical: 8 },
-    clearAllText: { fontSize: 14, color: C.textMuted },
     emptyText: { fontSize: 20, fontWeight: '600', color: C.textMuted, marginTop: 16 },
     emptySubtext: { fontSize: 14, color: C.border, marginTop: 4 },
     deleteAction: {
