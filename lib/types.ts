@@ -33,6 +33,8 @@ export type ShoppingItem = {
   name: string;
   checked: boolean;
   created_at: string;
+  position: number | null;
+  category: string | null;
 };
 
 export function getSource(url: string | null): string {

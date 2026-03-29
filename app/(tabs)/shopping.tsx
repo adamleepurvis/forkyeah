@@ -16,11 +16,16 @@ export default function ShoppingScreen() {
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState('');
   const [adding, setAdding] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
   const C = useColors();
   const styles = makeStyles(C);
 
   const fetchItems = useCallback(async () => {
-    const { data, error } = await supabase.from('shopping_items').select('*').order('created_at');
+    const { data, error } = await supabase
+      .from('shopping_items')
+      .select('*')
+      .order('position', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true });
     if (error) Alert.alert('Error', error.message);
     else setItems(data ?? []);
     setLoading(false);
@@ -79,8 +84,47 @@ export default function ShoppingScreen() {
     ]);
   }
 
+  async function organizeList() {
+    const unchecked = items.filter((i) => !i.checked);
+    if (unchecked.length < 2) return;
+
+    setOrganizing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const endpoint = Platform.OS === 'web' ? '/api/organize' : 'https://forkyeah.vercel.app/api/organize';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ items: unchecked.map((i) => i.name) }),
+      });
+
+      if (!res.ok) throw new Error('Organize failed');
+      const { items: organized } = await res.json();
+
+      // Delete existing unchecked items and re-insert organized ones
+      const uncheckedIds = unchecked.map((i) => i.id);
+      await supabase.from('shopping_items').delete().in('id', uncheckedIds);
+      await supabase.from('shopping_items').insert(
+        organized.map((item: { name: string; category: string }, i: number) => ({
+          name: item.name,
+          category: item.category,
+          position: i,
+        }))
+      );
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      fetchItems();
+    } catch {
+      Alert.alert('Error', 'Could not organize list. Try again.');
+    } finally {
+      setOrganizing(false);
+    }
+  }
+
   const unchecked = items.filter((i) => !i.checked);
   const checked = items.filter((i) => i.checked);
+  const allDisplayed = [...unchecked, ...checked];
 
   const renderRightActions = (id: string) => (
     <TouchableOpacity
@@ -98,10 +142,29 @@ export default function ShoppingScreen() {
           <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>
         ) : (
           <FlatList
-            data={[...unchecked, ...checked]}
+            data={allDisplayed}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              unchecked.length >= 2 ? (
+                <TouchableOpacity
+                  style={[styles.organizeBtn, organizing && { opacity: 0.6 }]}
+                  onPress={organizeList}
+                  disabled={organizing}
+                >
+                  {organizing ? (
+                    <ActivityIndicator size="small" color={C.red} />
+                  ) : (
+                    <Ionicons name="sparkles-outline" size={15} color={C.red} />
+                  )}
+                  <Text style={styles.organizeBtnText}>
+                    {organizing ? 'Organising...' : 'Organise list'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null
+            }
             ListEmptyComponent={
               <View style={styles.center}>
                 <Ionicons name="cart-outline" size={64} color={C.border} />
@@ -109,30 +172,44 @@ export default function ShoppingScreen() {
                 <Text style={styles.emptySubtext}>Add items below</Text>
               </View>
             }
-            renderItem={({ item }) => (
-              <>
-                {item.id === checked[0]?.id && checked.length > 0 && (
-                  <View style={styles.divider}>
-                    <Text style={styles.dividerText}>In cart ({checked.length})</Text>
-                    <TouchableOpacity onPress={clearChecked}>
-                      <Text style={styles.clearText}>Clear</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
-                  <TouchableOpacity
-                    style={[styles.itemRow, item.checked && styles.itemRowChecked]}
-                    onPress={() => toggleItem(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
-                      {item.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+            renderItem={({ item, index }) => {
+              // Show category header when category changes (for organised items only)
+              const prevItem = allDisplayed[index - 1];
+              const showCategoryHeader =
+                item.category &&
+                !item.checked &&
+                item.category !== prevItem?.category;
+
+              return (
+                <>
+                  {showCategoryHeader && (
+                    <View style={styles.categoryHeader}>
+                      <Text style={styles.categoryHeaderText}>{item.category}</Text>
                     </View>
-                    <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>{item.name}</Text>
-                  </TouchableOpacity>
-                </Swipeable>
-              </>
-            )}
+                  )}
+                  {item.id === checked[0]?.id && checked.length > 0 && (
+                    <View style={styles.divider}>
+                      <Text style={styles.dividerText}>In cart ({checked.length})</Text>
+                      <TouchableOpacity onPress={clearChecked}>
+                        <Text style={styles.clearText}>Clear</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
+                    <TouchableOpacity
+                      style={[styles.itemRow, item.checked && styles.itemRowChecked]}
+                      onPress={() => toggleItem(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
+                        {item.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+                      </View>
+                      <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>{item.name}</Text>
+                    </TouchableOpacity>
+                  </Swipeable>
+                </>
+              );
+            }}
             ListFooterComponent={
               items.length > 0 ? (
                 <TouchableOpacity style={styles.clearAllBtn} onPress={clearAll}>
@@ -167,6 +244,19 @@ function makeStyles(C: Colors) {
     container: { flex: 1, backgroundColor: C.bg },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, paddingTop: 80 },
     list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
+    organizeBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 6, paddingVertical: 10, marginBottom: 12,
+      borderRadius: 10, borderWidth: 1, borderColor: C.red, backgroundColor: C.redLight,
+    },
+    organizeBtnText: { fontSize: 14, color: C.red, fontWeight: '600' },
+    categoryHeader: {
+      paddingTop: 16, paddingBottom: 6,
+    },
+    categoryHeaderText: {
+      fontSize: 11, fontWeight: '700', color: C.red,
+      textTransform: 'uppercase', letterSpacing: 1,
+    },
     itemRow: {
       flexDirection: 'row', alignItems: 'center',
       paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.borderLight,
