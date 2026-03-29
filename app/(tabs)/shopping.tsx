@@ -160,7 +160,7 @@ export default function ShoppingScreen() {
                     <Ionicons name="sparkles-outline" size={15} color={C.red} />
                   )}
                   <Text style={styles.organizeBtnText}>
-                    {organizing ? 'Organising...' : 'Organise list'}
+                    {organizing ? 'Organizing...' : 'Organize list'}
                   </Text>
                 </TouchableOpacity>
               ) : null
