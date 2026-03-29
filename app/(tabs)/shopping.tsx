@@ -1,11 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Animated,
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../../lib/supabase';
 import type { ShoppingItem } from '../../lib/types';
@@ -110,7 +111,6 @@ export default function ShoppingScreen() {
       if (!res.ok) throw new Error('Organize failed');
       const { items: organized } = await res.json();
 
-      // Delete existing unchecked items and re-insert organized ones
       const uncheckedIds = unchecked.map((i) => i.id);
       await supabase.from('shopping_items').delete().in('id', uncheckedIds);
       await supabase.from('shopping_items').insert(
@@ -130,6 +130,16 @@ export default function ShoppingScreen() {
     }
   }
 
+  async function onDragEnd({ data }: { data: ShoppingItem[] }) {
+    setItems(data);
+    const newUnchecked = data.filter((i) => !i.checked);
+    await Promise.all(
+      newUnchecked.map((item, index) =>
+        supabase.from('shopping_items').update({ position: index }).eq('id', item.id)
+      )
+    );
+  }
+
   const unchecked = items.filter((i) => !i.checked);
   const checked = items.filter((i) => i.checked);
   const allDisplayed = [...unchecked, ...checked];
@@ -147,18 +157,73 @@ export default function ShoppingScreen() {
     </TouchableOpacity>
   );
 
+  const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<ShoppingItem>) => {
+    const index = getIndex() ?? 0;
+    const prevItem = allDisplayed[index - 1];
+    const effectiveCategory = getEffectiveCategory(item);
+    const prevEffectiveCategory = prevItem && !prevItem.checked ? getEffectiveCategory(prevItem) : null;
+    const showCategoryHeader =
+      !item.checked &&
+      effectiveCategory !== null &&
+      effectiveCategory !== prevEffectiveCategory;
+
+    return (
+      <ScaleDecorator>
+        <>
+          {showCategoryHeader && (
+            <View style={styles.categoryHeader}>
+              <Text style={styles.categoryHeaderText}>{effectiveCategory}</Text>
+              <TouchableOpacity onPress={() => clearCategory(item.category)}>
+                <Text style={styles.clearText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {item.id === checked[0]?.id && checked.length > 0 && (
+            <View style={styles.divider}>
+              <Text style={styles.dividerText}>In cart ({checked.length})</Text>
+              <TouchableOpacity onPress={clearChecked}>
+                <Text style={styles.clearText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
+            <TouchableOpacity
+              style={[styles.itemRow, item.checked && styles.itemRowChecked, isActive && styles.itemRowDragging]}
+              onPress={() => toggleItem(item)}
+              activeOpacity={0.7}
+            >
+              {!item.checked ? (
+                <TouchableOpacity onLongPress={drag} delayLongPress={150} hitSlop={8} style={styles.dragHandle}>
+                  <Ionicons name="reorder-three-outline" size={22} color={C.border} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.dragHandleSpacer} />
+              )}
+              <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
+                {item.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>{item.name}</Text>
+            </TouchableOpacity>
+          </Swipeable>
+        </>
+      </ScaleDecorator>
+    );
+  };
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
       <View style={styles.container}>
         {loading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>
         ) : (
-          <FlatList
+          <DraggableFlatList
             data={allDisplayed}
             keyExtractor={(item) => item.id}
+            onDragEnd={onDragEnd}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            renderItem={renderItem}
             ListHeaderComponent={
               items.length > 0 ? (
                 <View style={styles.headerActions}>
@@ -191,48 +256,6 @@ export default function ShoppingScreen() {
                 <Text style={styles.emptySubtext}>Add items below</Text>
               </View>
             }
-            renderItem={({ item, index }) => {
-              const prevItem = allDisplayed[index - 1];
-              const effectiveCategory = getEffectiveCategory(item);
-              const prevEffectiveCategory = prevItem && !prevItem.checked ? getEffectiveCategory(prevItem) : null;
-              const showCategoryHeader =
-                !item.checked &&
-                effectiveCategory !== null &&
-                effectiveCategory !== prevEffectiveCategory;
-
-              return (
-                <>
-                  {showCategoryHeader && (
-                    <View style={styles.categoryHeader}>
-                      <Text style={styles.categoryHeaderText}>{effectiveCategory}</Text>
-                      <TouchableOpacity onPress={() => clearCategory(item.category)}>
-                        <Text style={styles.clearText}>Clear</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  {item.id === checked[0]?.id && checked.length > 0 && (
-                    <View style={styles.divider}>
-                      <Text style={styles.dividerText}>In cart ({checked.length})</Text>
-                      <TouchableOpacity onPress={clearChecked}>
-                        <Text style={styles.clearText}>Clear</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
-                    <TouchableOpacity
-                      style={[styles.itemRow, item.checked && styles.itemRowChecked]}
-                      onPress={() => toggleItem(item)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
-                        {item.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
-                      </View>
-                      <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>{item.name}</Text>
-                    </TouchableOpacity>
-                  </Swipeable>
-                </>
-              );
-            }}
             ListFooterComponent={<View style={{ height: 16 }} />}
           />
         )}
@@ -288,6 +311,9 @@ function makeStyles(C: Colors) {
       gap: 14, backgroundColor: C.bg,
     },
     itemRowChecked: { opacity: 0.5 },
+    itemRowDragging: { opacity: 0.85, backgroundColor: C.card },
+    dragHandle: { padding: 2 },
+    dragHandleSpacer: { width: 26 },
     checkbox: {
       width: 24, height: 24, borderRadius: 12, borderWidth: 2,
       borderColor: C.border, alignItems: 'center', justifyContent: 'center',
