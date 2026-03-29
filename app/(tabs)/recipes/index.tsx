@@ -60,6 +60,7 @@ function shuffle<T>(arr: T[]): T[] {
 export default function RecipesScreen() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recentIds, setRecentIds] = useState<Set<string>>(new Set());
+  const [lastMadeMap, setLastMadeMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -78,14 +79,24 @@ export default function RecipesScreen() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const ago = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`;
 
-    const [recipesRes, plansRes, userRes] = await Promise.all([
+    const [recipesRes, plansRes, allPlansRes, userRes] = await Promise.all([
       supabase.from('recipes').select('*').order('title'),
       supabase.from('meal_plans').select('recipe_id').gte('date', ago).lte('date', today),
+      supabase.from('meal_plans').select('recipe_id, date').lte('date', today),
       supabase.auth.getUser(),
     ]);
 
     setRecipes(recipesRes.data ?? []);
     setRecentIds(new Set((plansRes.data ?? []).map((p: any) => p.recipe_id).filter(Boolean)));
+
+    const map: Record<string, string> = {};
+    for (const p of allPlansRes.data ?? []) {
+      if (p.recipe_id && (!map[p.recipe_id] || p.date > map[p.recipe_id])) {
+        map[p.recipe_id] = p.date;
+      }
+    }
+    setLastMadeMap(map);
+
     setUserEmail(userRes.data.user?.email ?? '');
     setLoading(false);
   }, []);
@@ -255,6 +266,11 @@ export default function RecipesScreen() {
                     </View>
                   )}
                 </View>
+                {lastMadeMap[item.id] ? (
+                  <Text style={styles.lastMade}>
+                    Last made {new Date(lastMadeMap[item.id] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                ) : null}
               </View>
               <Ionicons name="chevron-forward" size={16} color={C.border} />
             </TouchableOpacity>
@@ -406,6 +422,7 @@ function makeStyles(C: Colors) {
     tagTiming: { backgroundColor: C.tagTiming },
     tagSource: { backgroundColor: C.tagSource },
     tagText: { fontSize: 11, color: C.tagText, fontWeight: '600' },
+    lastMade: { fontSize: 11, color: C.textMuted, marginTop: 5 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
     emptyText: { fontSize: 18, fontWeight: '600', color: C.textMuted },
     overlay: { flex: 1, backgroundColor: C.overlay, justifyContent: 'flex-end' },

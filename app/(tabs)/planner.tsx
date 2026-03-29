@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../../lib/supabase';
 import type { Recipe, MealPlan } from '../../lib/types';
@@ -257,6 +258,21 @@ export default function PlannerScreen() {
         </ScrollView>
       )}
 
+      <GestureDetector gesture={Gesture.Pan()
+        .activeOffsetX([-30, 30])
+        .failOffsetY([-10, 10])
+        .runOnJS(true)
+        .onEnd((e) => {
+          if (e.translationX < -50) {
+            setWeekOffset((o) => o + 1);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          } else if (e.translationX > 50) {
+            setWeekOffset((o) => o - 1);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+        })
+      }>
+      <View style={{ flex: 1 }}>
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>
       ) : (
@@ -327,6 +343,8 @@ export default function PlannerScreen() {
           })}
         </ScrollView>
       )}
+      </View>
+      </GestureDetector>
 
       {/* Recipe picker modal */}
       <Modal visible={!!picking} animationType="slide" presentationStyle="pageSheet">
