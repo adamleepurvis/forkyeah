@@ -72,13 +72,15 @@ export default function RecipesScreen() {
   const styles = makeStyles(C);
 
   const fetchData = useCallback(async () => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const ago = thirtyDaysAgo.toISOString().split('T')[0];
+    const ago = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`;
 
     const [recipesRes, plansRes, userRes] = await Promise.all([
       supabase.from('recipes').select('*').order('title'),
-      supabase.from('meal_plans').select('recipe_id').gte('date', ago),
+      supabase.from('meal_plans').select('recipe_id').gte('date', ago).lte('date', today),
       supabase.auth.getUser(),
     ]);
 
@@ -126,7 +128,7 @@ export default function RecipesScreen() {
   const ListHeader = showTryNew ? (
     <View style={styles.tryNewSection}>
       <Text style={styles.tryNewTitle}>Try something new</Text>
-      <Text style={styles.tryNewSub}>Not planned in the last 30 days</Text>
+      <Text style={styles.tryNewSub}>Not made in the last 30 days</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tryNewScroll}>
         {tryNew.map((r) => (
           <TouchableOpacity
