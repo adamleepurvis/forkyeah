@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -148,6 +148,38 @@ export default function ShoppingScreen() {
   const getEffectiveCategory = (i: ShoppingItem) =>
     i.category ?? (hasCategorizedItems ? 'Uncategorized' : null);
 
+  const listHeader = items.length > 0 ? (
+    <View style={styles.headerActions}>
+      {unchecked.length >= 2 && (
+        <TouchableOpacity
+          style={[styles.organizeBtn, organizing && { opacity: 0.6 }]}
+          onPress={organizeList}
+          disabled={organizing}
+        >
+          {organizing ? (
+            <ActivityIndicator size="small" color={C.red} />
+          ) : (
+            <Ionicons name="sparkles-outline" size={15} color={C.red} />
+          )}
+          <Text style={styles.organizeBtnText}>
+            {organizing ? 'Organizing...' : 'Organize list'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity style={styles.clearAllHeaderBtn} onPress={clearAll}>
+        <Text style={styles.clearAllHeaderText}>Clear all</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
+
+  const listEmpty = (
+    <View style={styles.center}>
+      <Ionicons name="cart-outline" size={64} color={C.border} />
+      <Text style={styles.emptyText}>List is empty</Text>
+      <Text style={styles.emptySubtext}>Add items below</Text>
+    </View>
+  );
+
   const renderRightActions = (id: string) => (
     <TouchableOpacity
       style={styles.deleteAction}
@@ -156,6 +188,45 @@ export default function ShoppingScreen() {
       <Ionicons name="trash-outline" size={22} color="#fff" />
     </TouchableOpacity>
   );
+
+  const renderWebItem = ({ item, index }: { item: ShoppingItem; index: number }) => {
+    const prevItem = allDisplayed[index - 1];
+    const effectiveCategory = getEffectiveCategory(item);
+    const prevEffectiveCategory = prevItem && !prevItem.checked ? getEffectiveCategory(prevItem) : null;
+    const showCategoryHeader =
+      !item.checked && effectiveCategory !== null && effectiveCategory !== prevEffectiveCategory;
+
+    return (
+      <>
+        {showCategoryHeader && (
+          <View style={styles.categoryHeader}>
+            <Text style={styles.categoryHeaderText}>{effectiveCategory}</Text>
+            <TouchableOpacity onPress={() => clearCategory(item.category)}>
+              <Text style={styles.clearText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {item.id === checked[0]?.id && checked.length > 0 && (
+          <View style={styles.divider}>
+            <Text style={styles.dividerText}>In cart ({checked.length})</Text>
+            <TouchableOpacity onPress={clearChecked}>
+              <Text style={styles.clearText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <TouchableOpacity
+          style={[styles.itemRow, item.checked && styles.itemRowChecked]}
+          onPress={() => toggleItem(item)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
+            {item.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+          <Text style={[styles.itemName, item.checked && styles.itemNameChecked]}>{item.name}</Text>
+        </TouchableOpacity>
+      </>
+    );
+  };
 
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<ShoppingItem>) => {
     const index = getIndex() ?? 0;
@@ -215,6 +286,18 @@ export default function ShoppingScreen() {
       <View style={styles.container}>
         {loading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={C.red} /></View>
+        ) : Platform.OS === 'web' ? (
+          <FlatList
+            data={allDisplayed}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            renderItem={renderWebItem}
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={listEmpty}
+            ListFooterComponent={<View style={{ height: 16 }} />}
+          />
         ) : (
           <DraggableFlatList
             data={allDisplayed}
@@ -224,38 +307,8 @@ export default function ShoppingScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             renderItem={renderItem}
-            ListHeaderComponent={
-              items.length > 0 ? (
-                <View style={styles.headerActions}>
-                  {unchecked.length >= 2 && (
-                    <TouchableOpacity
-                      style={[styles.organizeBtn, organizing && { opacity: 0.6 }]}
-                      onPress={organizeList}
-                      disabled={organizing}
-                    >
-                      {organizing ? (
-                        <ActivityIndicator size="small" color={C.red} />
-                      ) : (
-                        <Ionicons name="sparkles-outline" size={15} color={C.red} />
-                      )}
-                      <Text style={styles.organizeBtnText}>
-                        {organizing ? 'Organizing...' : 'Organize list'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.clearAllHeaderBtn} onPress={clearAll}>
-                    <Text style={styles.clearAllHeaderText}>Clear all</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null
-            }
-            ListEmptyComponent={
-              <View style={styles.center}>
-                <Ionicons name="cart-outline" size={64} color={C.border} />
-                <Text style={styles.emptyText}>List is empty</Text>
-                <Text style={styles.emptySubtext}>Add items below</Text>
-              </View>
-            }
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={listEmpty}
             ListFooterComponent={<View style={{ height: 16 }} />}
           />
         )}
