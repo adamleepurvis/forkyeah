@@ -10,7 +10,7 @@ import { supabase } from '../../../lib/supabase';
 import { getSource, type Recipe, type Protein, type Timing } from '../../../lib/types';
 import { useColors, type Colors } from '../../../lib/colors';
 
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 
 const PROTEINS: Protein[] = ['chicken', 'salmon', 'shrimp', 'beef', 'pork', 'lamb', 'tofu', 'veggie'];
 const PROTEIN_LABEL: Record<Protein, string> = {
