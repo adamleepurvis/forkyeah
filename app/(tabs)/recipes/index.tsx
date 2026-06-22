@@ -10,6 +10,8 @@ import { supabase } from '../../../lib/supabase';
 import { getSource, type Recipe, type Protein, type Timing } from '../../../lib/types';
 import { useColors, type Colors } from '../../../lib/colors';
 
+const APP_VERSION = '1.0.1';
+
 const PROTEINS: Protein[] = ['chicken', 'salmon', 'shrimp', 'beef', 'pork', 'lamb', 'tofu', 'veggie'];
 const PROTEIN_LABEL: Record<Protein, string> = {
   chicken: 'Chicken', salmon: 'Salmon', shrimp: 'Shrimp', beef: 'Beef',
@@ -283,6 +285,7 @@ export default function RecipesScreen() {
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setAccountOpen(false)}>
           <View style={styles.accountSheet}>
             <Text style={styles.accountEmail}>{userEmail}</Text>
+            <Text style={styles.accountVersion}>v{APP_VERSION}</Text>
             <TouchableOpacity style={styles.signOutBtn} onPress={() => { setAccountOpen(false); signOut(); }}>
               <Ionicons name="log-out-outline" size={18} color={C.red} />
               <Text style={styles.signOutText}>Sign Out</Text>
@@ -431,6 +434,7 @@ function makeStyles(C: Colors) {
       padding: 24, paddingBottom: 40, gap: 16,
     },
     accountEmail: { fontSize: 15, color: C.textMuted, textAlign: 'center' },
+    accountVersion: { fontSize: 12, color: C.border, textAlign: 'center', marginTop: -8 },
     signOutBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.signOutBorder,
