@@ -86,6 +86,8 @@ export default function PlannerScreen() {
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState<{ dateStr: string; slot: 'lunch' | 'dinner' } | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
+  const [freeTextMode, setFreeTextMode] = useState(false);
+  const [freeTextValue, setFreeTextValue] = useState('');
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildPicks, setBuildPicks] = useState<{ date: Date; recipe: Recipe }[]>([]);
   const [specialModal, setSpecialModal] = useState<{ dateStr: string; value: string } | null>(null);
@@ -142,6 +144,20 @@ export default function PlannerScreen() {
   function closePicker() {
     setPicking(null);
     setPickerSearch('');
+    setFreeTextMode(false);
+    setFreeTextValue('');
+  }
+
+  async function addNoteToDay() {
+    if (!picking || !freeTextValue.trim()) return;
+    const existing = getMealPlansForSlot(picking.dateStr, picking.slot);
+    const position = existing.length;
+    await supabase
+      .from('meal_plans')
+      .insert({ date: picking.dateStr, meal_slot: picking.slot, recipe_id: null, note: freeTextValue.trim(), position });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    closePicker();
+    fetchData();
   }
 
   async function addRecipeToDay(recipe: Recipe) {
@@ -291,12 +307,14 @@ export default function PlannerScreen() {
                   onPress={() => { const url = plan.recipe?.url; if (url) Linking.openURL(url); }}
                   activeOpacity={plan.recipe?.url ? 0.6 : 1}
                 >
-                  <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
+                  <Text style={styles.assignedTitle} numberOfLines={1}>{plan.note ?? plan.recipe?.title}</Text>
                   {plan.recipe?.url && <Text style={styles.assignedLink}>Open recipe ↗</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => addIngredientsToShopping(plan)} style={styles.recipeActionBtn}>
-                  <Ionicons name="cart-outline" size={16} color={C.textMuted} />
-                </TouchableOpacity>
+                {plan.recipe_id && (
+                  <TouchableOpacity onPress={() => addIngredientsToShopping(plan)} style={styles.recipeActionBtn}>
+                    <Ionicons name="cart-outline" size={16} color={C.textMuted} />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={() => removeRecipeFromDay(plan.id)} style={styles.recipeActionBtn}>
                   <Ionicons name="close-circle" size={18} color={C.border} />
                 </TouchableOpacity>
@@ -368,55 +386,96 @@ export default function PlannerScreen() {
               <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
           </View>
-          <View style={styles.pickerSearchWrap}>
-            <Ionicons name="search" size={16} color={C.textMuted} style={styles.pickerSearchIcon} />
-            <TextInput
-              style={styles.pickerSearchInput}
-              placeholder="Search recipes..."
-              placeholderTextColor={C.placeholder}
-              value={pickerSearch}
-              onChangeText={setPickerSearch}
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-            />
-          </View>
-          {recipes.length === 0 ? (
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>No recipes yet.</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={recipes.filter((r) =>
-                r.title.toLowerCase().includes(pickerSearch.toLowerCase())
-              )}
-              keyExtractor={(r) => r.id}
-              contentContainerStyle={{ padding: 16 }}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={styles.center}>
-                  <Text style={styles.emptyText}>No recipes match "{pickerSearch}"</Text>
-                </View>
-              }
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.recipeOption} onPress={() => addRecipeToDay(item)}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.recipeOptionText}>{item.title}</Text>
-                    {item.protein && <Text style={styles.recipeOptionSub}>{PROTEIN_LABEL[item.protein]}</Text>}
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={C.border} />
-                </TouchableOpacity>
-              )}
-            />
-          )}
-          <View style={styles.pickerFooter}>
+
+          {/* Mode toggle */}
+          <View style={styles.modeToggle}>
             <TouchableOpacity
-              style={styles.addNewRecipeBtn}
-              onPress={() => { closePicker(); router.push('/(tabs)/recipes/new'); }}
+              style={[styles.modeBtn, !freeTextMode && styles.modeBtnActive]}
+              onPress={() => setFreeTextMode(false)}
             >
-              <Ionicons name="add-circle-outline" size={18} color={C.red} />
-              <Text style={styles.addNewRecipeText}>Add a new recipe</Text>
+              <Text style={[styles.modeBtnText, !freeTextMode && styles.modeBtnTextActive]}>Saved Recipe</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, freeTextMode && styles.modeBtnActive]}
+              onPress={() => setFreeTextMode(true)}
+            >
+              <Text style={[styles.modeBtnText, freeTextMode && styles.modeBtnTextActive]}>Free Text</Text>
             </TouchableOpacity>
           </View>
+
+          {freeTextMode ? (
+            <View style={styles.freeTextContainer}>
+              <TextInput
+                style={styles.freeTextInput}
+                placeholder="e.g. leftover pasta, takeout night..."
+                placeholderTextColor={C.placeholder}
+                value={freeTextValue}
+                onChangeText={setFreeTextValue}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={addNoteToDay}
+              />
+              <TouchableOpacity
+                style={[styles.freeTextBtn, !freeTextValue.trim() && { opacity: 0.4 }]}
+                onPress={addNoteToDay}
+                disabled={!freeTextValue.trim()}
+              >
+                <Text style={styles.freeTextBtnText}>Add to Plan</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.pickerSearchWrap}>
+                <Ionicons name="search" size={16} color={C.textMuted} style={styles.pickerSearchIcon} />
+                <TextInput
+                  style={styles.pickerSearchInput}
+                  placeholder="Search recipes..."
+                  placeholderTextColor={C.placeholder}
+                  value={pickerSearch}
+                  onChangeText={setPickerSearch}
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+              </View>
+              {recipes.length === 0 ? (
+                <View style={styles.center}>
+                  <Text style={styles.emptyText}>No recipes yet.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={recipes.filter((r) =>
+                    r.title.toLowerCase().includes(pickerSearch.toLowerCase())
+                  )}
+                  keyExtractor={(r) => r.id}
+                  contentContainerStyle={{ padding: 16 }}
+                  keyboardShouldPersistTaps="handled"
+                  ListEmptyComponent={
+                    <View style={styles.center}>
+                      <Text style={styles.emptyText}>No recipes match "{pickerSearch}"</Text>
+                    </View>
+                  }
+                  renderItem={({ item }) => (
+                    <TouchableOpacity style={styles.recipeOption} onPress={() => addRecipeToDay(item)}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.recipeOptionText}>{item.title}</Text>
+                        {item.protein && <Text style={styles.recipeOptionSub}>{PROTEIN_LABEL[item.protein]}</Text>}
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={C.border} />
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+              <View style={styles.pickerFooter}>
+                <TouchableOpacity
+                  style={styles.addNewRecipeBtn}
+                  onPress={() => { closePicker(); router.push('/(tabs)/recipes/new'); }}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color={C.red} />
+                  <Text style={styles.addNewRecipeText}>Add a new recipe</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </Modal>
 
@@ -585,6 +644,22 @@ function makeStyles(C: Colors) {
     specialCancelText: { fontSize: 15, color: C.textMuted, fontWeight: '600' },
     specialSaveBtn: { flex: 1, backgroundColor: C.red, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
     specialSaveText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+    modeToggle: {
+      flexDirection: 'row', margin: 16, marginBottom: 0,
+      backgroundColor: C.inputBg, borderRadius: 10, padding: 4,
+      borderWidth: 1, borderColor: C.border,
+    },
+    modeBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+    modeBtnActive: { backgroundColor: C.red },
+    modeBtnText: { fontSize: 14, fontWeight: '600', color: C.textMuted },
+    modeBtnTextActive: { color: '#fff' },
+    freeTextContainer: { flex: 1, padding: 16, gap: 12 },
+    freeTextInput: {
+      backgroundColor: C.inputBg, borderRadius: 10, paddingHorizontal: 14,
+      paddingVertical: 14, fontSize: 16, borderWidth: 1, borderColor: C.border, color: C.text,
+    },
+    freeTextBtn: { backgroundColor: C.red, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    freeTextBtnText: { fontSize: 16, color: '#fff', fontWeight: '700' },
     pickerFooter: {
       borderTopWidth: 1, borderTopColor: C.border, padding: 16,
     },

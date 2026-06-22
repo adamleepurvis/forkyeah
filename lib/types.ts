@@ -19,6 +19,7 @@ export type MealPlan = {
   date: string; // YYYY-MM-DD
   meal_slot: 'lunch' | 'dinner';
   recipe_id: string | null;
+  note: string | null;
   recipe?: Recipe;
   position: number;
 };
