@@ -45,6 +45,12 @@ html = html.replace(
   'initial-scale=1, shrink-to-fit=no, viewport-fit=cover"'
 );
 
+// Make safe-area insets black to match the black-translucent status bar
+html = html.replace(
+  'body {\n        overflow: hidden;\n      }',
+  'body {\n        overflow: hidden;\n        background-color: #000;\n      }'
+);
+
 // Inject PWA tags before </head>
 const pwaTags = `  <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
