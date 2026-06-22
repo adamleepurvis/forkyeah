@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform, Pressable } from 'react-native';
 import { useColors } from '../../lib/colors';
 
 export default function TabsLayout() {
@@ -14,6 +15,14 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: C.bg, borderTopColor: C.border },
         tabBarActiveTintColor: C.red,
         tabBarInactiveTintColor: C.textMuted,
+        // On web, use Pressable instead of anchor tags so iOS PWA stays in standalone mode
+        ...(Platform.OS === 'web' && {
+          tabBarButton: ({ onPress, children, style, accessibilityState }: any) => (
+            <Pressable onPress={onPress} style={style} accessibilityState={accessibilityState}>
+              {children}
+            </Pressable>
+          ),
+        }),
       }}
     >
       <Tabs.Screen
