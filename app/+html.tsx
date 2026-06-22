@@ -16,7 +16,8 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <ScrollViewStyleReset />
-        {/* Keep iOS PWA in standalone mode: intercept anchor clicks and use pushState instead */}
+        {/* Keep iOS PWA in standalone mode: prevent anchor default so iOS doesn't open Safari.
+            React Navigation's own bubble-phase handler still fires and navigates client-side. */}
         <script dangerouslySetInnerHTML={{ __html: `
           (function() {
             if (!window.navigator.standalone) return;
@@ -26,11 +27,7 @@ export default function Root({ children }: PropsWithChildren) {
               if (!el || !el.href) return;
               try {
                 var url = new URL(el.href);
-                if (url.origin !== window.location.origin) return;
-                e.preventDefault();
-                e.stopPropagation();
-                window.history.pushState(null, '', url.pathname + url.search + url.hash);
-                window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+                if (url.origin === window.location.origin) e.preventDefault();
               } catch(err) {}
             }, true);
           })();
