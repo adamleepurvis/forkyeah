@@ -84,7 +84,7 @@ export default function PlannerScreen() {
   const [daySpecials, setDaySpecials] = useState<Record<string, string>>({});
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const [picking, setPicking] = useState<string | null>(null);
+  const [picking, setPicking] = useState<{ dateStr: string; slot: 'lunch' | 'dinner' } | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildPicks, setBuildPicks] = useState<{ date: Date; recipe: Recipe }[]>([]);
@@ -130,8 +130,8 @@ export default function PlannerScreen() {
     fetchData();
   }, [fetchData]));
 
-  function getMealPlansForDate(dateStr: string): MealPlan[] {
-    return mealPlans.filter((m) => m.date === dateStr).sort((a, b) => a.position - b.position);
+  function getMealPlansForSlot(dateStr: string, slot: 'lunch' | 'dinner'): MealPlan[] {
+    return mealPlans.filter((m) => m.date === dateStr && m.meal_slot === slot).sort((a, b) => a.position - b.position);
   }
 
   function getSpecialForDate(dateStr: string): string {
@@ -146,11 +146,11 @@ export default function PlannerScreen() {
 
   async function addRecipeToDay(recipe: Recipe) {
     if (!picking) return;
-    const existing = getMealPlansForDate(picking);
+    const existing = getMealPlansForSlot(picking.dateStr, picking.slot);
     const position = existing.length;
     await supabase
       .from('meal_plans')
-      .insert({ date: picking, meal_slot: 'dinner', recipe_id: recipe.id, position });
+      .insert({ date: picking.dateStr, meal_slot: picking.slot, recipe_id: recipe.id, position });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPicking(null);
     fetchData();
@@ -280,8 +280,28 @@ export default function PlannerScreen() {
           {weekDates.map((date, i) => {
             const dateStr = toDateStr(date);
             const isToday = toDateStr(new Date()) === dateStr;
-            const plans = getMealPlansForDate(dateStr);
+            const lunchPlans = getMealPlansForSlot(dateStr, 'lunch');
+            const dinnerPlans = getMealPlansForSlot(dateStr, 'dinner');
             const special = getSpecialForDate(dateStr);
+
+            const renderPlanRow = (plan: MealPlan) => (
+              <View key={plan.id} style={styles.assignedRecipe}>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  onPress={() => { const url = plan.recipe?.url; if (url) Linking.openURL(url); }}
+                  activeOpacity={plan.recipe?.url ? 0.6 : 1}
+                >
+                  <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
+                  {plan.recipe?.url && <Text style={styles.assignedLink}>Open recipe ↗</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => addIngredientsToShopping(plan)} style={styles.recipeActionBtn}>
+                  <Ionicons name="cart-outline" size={16} color={C.textMuted} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => removeRecipeFromDay(plan.id)} style={styles.recipeActionBtn}>
+                  <Ionicons name="close-circle" size={18} color={C.border} />
+                </TouchableOpacity>
+              </View>
+            );
 
             return (
               <View key={dateStr} style={[styles.dayCard, isToday && styles.dayCardToday]}>
@@ -303,40 +323,33 @@ export default function PlannerScreen() {
                 </View>
 
                 <View style={styles.dayBody}>
-                  {plans.map((plan) => (
-                    <View key={plan.id} style={styles.assignedRecipe}>
-                      <TouchableOpacity
-                        style={{ flex: 1 }}
-                        onPress={() => {
-                          const url = plan.recipe?.url;
-                          if (url) Linking.openURL(url);
-                        }}
-                        activeOpacity={plan.recipe?.url ? 0.6 : 1}
-                      >
-                        <Text style={styles.assignedTitle} numberOfLines={1}>{plan.recipe?.title}</Text>
-                        {plan.recipe?.url && <Text style={styles.assignedLink}>Open recipe ↗</Text>}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => addIngredientsToShopping(plan)}
-                        style={styles.recipeActionBtn}
-                      >
-                        <Ionicons name="cart-outline" size={16} color={C.textMuted} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => removeRecipeFromDay(plan.id)}
-                        style={styles.recipeActionBtn}
-                      >
-                        <Ionicons name="close-circle" size={18} color={C.border} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  <TouchableOpacity
-                    style={styles.addSlot}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking(dateStr); }}
-                  >
-                    <Ionicons name="add-circle-outline" size={18} color={C.border} />
-                    <Text style={styles.addSlotText}>{plans.length === 0 ? 'Add dinner' : 'Add another'}</Text>
-                  </TouchableOpacity>
+                  {/* Lunch section */}
+                  <View style={styles.slotSection}>
+                    <Text style={styles.slotLabel}>Lunch</Text>
+                    {lunchPlans.map(renderPlanRow)}
+                    <TouchableOpacity
+                      style={styles.addSlot}
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking({ dateStr, slot: 'lunch' }); }}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={C.border} />
+                      <Text style={styles.addSlotText}>{lunchPlans.length === 0 ? 'Add lunch' : 'Add another'}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.slotDivider} />
+
+                  {/* Dinner section */}
+                  <View style={styles.slotSection}>
+                    <Text style={styles.slotLabel}>Dinner</Text>
+                    {dinnerPlans.map(renderPlanRow)}
+                    <TouchableOpacity
+                      style={styles.addSlot}
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPicking({ dateStr, slot: 'dinner' }); }}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={C.border} />
+                      <Text style={styles.addSlotText}>{dinnerPlans.length === 0 ? 'Add dinner' : 'Add another'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -350,7 +363,7 @@ export default function PlannerScreen() {
       <Modal visible={!!picking} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Pick a Recipe</Text>
+            <Text style={styles.modalTitle}>Pick a {picking?.slot === 'lunch' ? 'Lunch' : 'Dinner'} Recipe</Text>
             <TouchableOpacity onPress={closePicker}>
               <Ionicons name="close" size={26} color={C.text} />
             </TouchableOpacity>
@@ -526,7 +539,10 @@ function makeStyles(C: Colors) {
       borderWidth: 1, borderColor: C.warnBorder,
     },
     specialBadgeText: { fontSize: 12, color: C.red, fontWeight: '700' },
-    dayBody: { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
+    dayBody: { paddingHorizontal: 16, paddingVertical: 8, gap: 4 },
+    slotSection: { gap: 5 },
+    slotLabel: { fontSize: 10, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 2 },
+    slotDivider: { height: 1, backgroundColor: C.borderLight, marginVertical: 2 },
     assignedRecipe: {
       flexDirection: 'row', alignItems: 'center',
       backgroundColor: C.inputBg, borderRadius: 10,

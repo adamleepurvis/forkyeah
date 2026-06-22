@@ -33,7 +33,8 @@
       "shortName": "ForkYeah",
       "description": "Your weekly meal planner",
       "themeColor": "#CC0000",
-      "backgroundColor": "#FFF8F3"
+      "backgroundColor": "#FFF8F3",
+      "display": "standalone"
     },
     "plugins": [
       "expo-router",
