@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../../../lib/supabase';
@@ -62,6 +62,19 @@ export default function NewRecipeScreen() {
       Alert.alert('Nothing found', 'Could not extract recipe details from this link. Try filling in the fields manually.');
     }
   }
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isEditing) return;
+      setTitle('');
+      setUrl('');
+      setNotes('');
+      setProtein(null);
+      setTiming(null);
+      setIngredients(['']);
+      hasScraped.current = false;
+    }, [isEditing])
+  );
 
   useEffect(() => {
     if (!isEditing) return;
