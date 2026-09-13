@@ -468,7 +468,14 @@ export default function PlannerScreen() {
               <View style={styles.pickerFooter}>
                 <TouchableOpacity
                   style={styles.addNewRecipeBtn}
-                  onPress={() => { closePicker(); router.push('/(tabs)/recipes/new'); }}
+                  onPress={() => {
+                    const target = picking;
+                    closePicker();
+                    router.push({
+                      pathname: '/(tabs)/recipes/new',
+                      params: target ? { forDate: target.dateStr, forSlot: target.slot } : {},
+                    });
+                  }}
                 >
                   <Ionicons name="add-circle-outline" size={18} color={C.red} />
                   <Text style={styles.addNewRecipeText}>Add a new recipe</Text>

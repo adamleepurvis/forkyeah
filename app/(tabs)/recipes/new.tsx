@@ -23,7 +23,7 @@ const PROTEINS: { value: Protein; label: string }[] = [
 ];
 
 export default function NewRecipeScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, forDate, forSlot } = useLocalSearchParams<{ id?: string; forDate?: string; forSlot?: 'lunch' | 'dinner' }>();
   const router = useRouter();
   const isEditing = !!id;
   const C = useColors();
@@ -131,11 +131,30 @@ export default function NewRecipeScreen() {
     };
 
     let error;
+    let newRecipeId: string | null = null;
     if (isEditing) {
       ({ error } = await supabase.from('recipes').update(payload).eq('id', id));
     } else {
       const { data: { user } } = await supabase.auth.getUser();
-      ({ error } = await supabase.from('recipes').insert({ ...payload, created_by: user!.id }));
+      const { data, error: insertError } = await supabase
+        .from('recipes')
+        .insert({ ...payload, created_by: user!.id })
+        .select()
+        .single();
+      error = insertError;
+      newRecipeId = data?.id ?? null;
+    }
+
+    if (!error && newRecipeId && forDate) {
+      const slot = forSlot ?? 'dinner';
+      const { count } = await supabase
+        .from('meal_plans')
+        .select('*', { count: 'exact', head: true })
+        .eq('date', forDate)
+        .eq('meal_slot', slot);
+      ({ error } = await supabase
+        .from('meal_plans')
+        .insert({ date: forDate, meal_slot: slot, recipe_id: newRecipeId, position: count ?? 0 }));
     }
 
     setSaving(false);
